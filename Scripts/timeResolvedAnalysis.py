@@ -26,10 +26,12 @@ class IncorrectConfigException(Exception):
 
 def get_matching_files(directory, target, exclusion_string):
     """
-    Search in directory and its subdirectories for files with target in their name but missing an exclusion string
-    :param directory: all files in this directory & subdirectories are checked
-    :param target: substring of filename
-    :param exclusion_string: excludes files that have any of the strings in this list
+    Recursively searches for files containing a target substring in their names,
+    excluding any that contain substrings from the exclusion list.
+
+    :param directory: Root directory to search
+    :param target: Substring that must be present in the filename
+    :param exclusion_string: List of substrings; filenames containing any of them are excluded
     :return: List of matching file paths
     """
     matching_files = []
@@ -43,11 +45,13 @@ def get_matching_files(directory, target, exclusion_string):
 
 def parent_string(substring, parents, exclusionstr):
     """
-    goes through a list of strings, searching for a specific substring
-    :param substring: the string to search for
-    :param parents: a list of potential parent strings
-    :param exclusionstr: a list of strings that must not be in the parent string
-    :return: the parent string
+    Searches a list of strings ('parents') for entries that contain a specific substring
+    but do NOT contain a given exclusion string.
+
+    :param substring: Substring to search for
+    :param parents: List of potential parent strings
+    :param exclusionstr: List of strings that must not be present in the parent string
+    :return: A single matching string (raises exception if ambiguous or not found)
     """
     parent = [a for a in parents if
               (substring in a and exclusionstr not in a)]
@@ -62,18 +66,21 @@ def parent_string(substring, parents, exclusionstr):
 
 def sort_cells(cells):
     """
-    :param cells: a list of cell names
-    :return: cells sorted in alphanumerical order taking multi digit numbers into account
+    Sorts a list of cell names in alphanumeric order, taking into account numeric parts.
+    For example: ["Cell_1", "Cell_10", "Cell_2"] -> ["Cell_1", "Cell_2", "Cell_10"]
+
+    :param cells: List of cell name strings
+    :return: List of alphanumerically sorted cell names
     """
     digits = [[]]
     for cell in cells:
-        number = cell.split("_")[-1].split(".")[0]
+        number = cell.split("_")[-1].split(".")[0]  # Extracts numeric part from the name
         while True:
             try:
                 digits[len(number)].append(cell)
                 break
             except IndexError:
-                digits.append([])
+                digits.append([])  # Add new sublist if needed
                 continue
     sorted = []
     for dig in digits:
@@ -84,11 +91,15 @@ def sort_cells(cells):
 
 def insert_error(meanframe, sdframe, semframe):
     """
-    :param meanframe: a dataframe of calculated mean values
-    :param sdframe: a dataframe of calculated standard deviations
-    :param a dataframe of calculated standard errors of means
-    :return: a dataframe with SD and SEM columns inserted after their mean
+    Inserts standard deviation (SD) and standard error of the mean (SEM) columns
+    into a dataframe containing mean values, directly after their corresponding mean column.
+
+    :param meanframe: Dataframe with mean values
+    :param sdframe: Dataframe with standard deviations
+    :param semframe: Dataframe with standard errors of the mean
+    :return: Modified dataframe with SD and SEM inserted
     """
+    # Remove metadata columns (assumes first two are not data columns)
     sdframe = sdframe.iloc[:, 2:]
     semframe = semframe.iloc[:, 2:]
     i = 0
@@ -96,8 +107,10 @@ def insert_error(meanframe, sdframe, semframe):
         name = sdframe.columns[i]
         sd = sdframe.iloc[:, i]
         sem = semframe.iloc[:, i]
+        # Rename error columns to indicate type
         sd.rename(name + '_SD', inplace=True)
         sem.rename(name + '_SEM', inplace=True)
+        # Insert error columns right after the mean column
         meanframe.insert(i * 3 + 3, name + '_SD', sd)
         meanframe.insert(i * 3 + 4, name + '_SEM', sem)
         i += 1
@@ -106,22 +119,34 @@ def insert_error(meanframe, sdframe, semframe):
 
 def calc_mean_over_cS(binned_data, attribute):
     """
-    :param binned_data: a list of binned dataframes
-    :param attribute: the attribute to calculate the values over
-    :return: numpy stack of the mean, standard deviation and standard error of mean of a certain attribute
+    Calculates the mean, standard deviation, and standard error of a specified attribute
+    across a list of binned dataframes (e.g. from different coverslips).
+
+    :param binned_data: List of binned dataframes
+    :param attribute: Name pattern of the attribute to aggregate
+    :return: Numpy array with [mean, std, sem] per row
     """
     attributes = pd.DataFrame()
     for i, df in enumerate(binned_data):
+        # Select columns matching attribute name, but exclude error columns
         columns = [col for col in df.columns if attribute in col and not col.endswith(("_SD", '_SEM'))]
         for col in columns:
             attributes = pd.concat([attributes, df[col]], axis=1)
-    stats = np.column_stack([attributes.mean(axis=1), attributes.std(axis=1), attributes.sem(axis=1)])
+
+    # Stack results into a Numpy array
+    stats = np.column_stack([
+        attributes.mean(axis=1),
+        attributes.std(axis=1),
+        attributes.sem(axis=1)
+    ])
     return stats
 
 
 def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_type, clr):
     """
-    :param dataframes: all datafames to be plotted
+    Plots time-dependent data from multiple dataframes as individual dots and average bars with error shading.
+
+    :param dataframes: List of raw datafames to be plotted (dots)
     :param attribute: the attribute to be plotted
     :param t_lig: time the ligand was added
     :param ligand_name: name of the ligand
