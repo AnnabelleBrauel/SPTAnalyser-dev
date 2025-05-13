@@ -7,6 +7,7 @@
 *.pdf
 /build
 /.ipynb_checkpoints
+/.idea
 /dist
 /pySPT.egg-info
 /SPTAnalyser.egg-info
