@@ -147,367 +147,457 @@ def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_t
     Plots time-dependent data from multiple dataframes as individual dots and average bars with error shading.
 
     :param dataframes: List of raw datafames to be plotted (dots)
-    :param attribute: the attribute to be plotted
-    :param t_lig: time the ligand was added
-    :param ligand_name: name of the ligand
-    :param binned_data: list of binned data per coverslip
-    :param error_type: whether to use standard deviation or SEM
-    :param clr: color to plot the datapoints in
-    :return: the created plot
-    plots the given dataframes into a graph and creates bars of the mean values given over a timeframe
+    :param attribute: Attribute to be plotted:
+            P: Percentage of mobile molecules
+            D: Diffusion coefficient
+            L: Track length
+            N: Number of tracks/particles
+            confinement_radius: confinement radius
+    :param t_lig: Time of ligand addition (e.g. "180s")
+    :param ligand_name: Name of the ligand to label the vertical line
+    :param binned_data: List of binned data per coverslip for calculating statistics
+    :param error_type: 'SEM' or 'SD' - determines which error to use
+    :param clr: Color of the raw data dots
+    :return: The generated plot
     """
     fix, ax = plt.subplots()
-    # plots dots
-    colors = []
+
+    # Plot individual data points from each coverslip
     for frame in dataframes:
-        color = ax.plot(frame.iloc[:, 1] / 60, frame[attribute], marker='o', ms=2, linestyle='None', color=clr)[
-            0].get_color()
-    # plots mean bars and errors
+        color = ax.plot(
+            frame.iloc[:, 1] / 60,
+            frame[attribute],
+            marker='o', ms=2, linestyle='None', color=clr
+        )[0].get_color()
+
+    # Calculate mean, std, sem across coverslips
     stats = calc_mean_over_cS(binned_data, attribute)
+
     left = 0
     longestdf = ''
+    # Determine the longest dataframe for time bin labels
     for df in binned_data:
         if len(df) > len(longestdf):
             longestdf = df
+
+    # Plot horizontal bars for mean values with error shading
     for i, row in enumerate(stats):
-        # reads the error after it has been calculated in the calc_mean_over_cS function
         if error_type == 'SEM':
             error = row[2]
         else:
             error = row[1]
+
+        # Calculate right edge of the time bin (convert from seconds to minutes)
         if i == len(stats) - 1:
             right = float(longestdf.iloc[i, 1].split('-')[1]) / 60
         else:
             right = (((float(longestdf.iloc[i + 1, 1].split('-')[0]) - float(
                 longestdf.iloc[i, 1].split('-')[1])) / 2) + float(longestdf.iloc[i, 1].split('-')[1])) / 60
-        ax.barh(row[0],
+
+        # Draw the mean bar
+        ax.barh(row[0],  # mean_value? TODO
                 width=right - left,
-                height=ax.get_ylim()[1] * 0.005, left=left, alpha=1,
-                align='center', color='black')
-        ax.barh(row[0],
+                height=ax.get_ylim()[1] * 0.005,  # Thin horizontal bar
+                left=left,
+                alpha=1,
+                align='center',
+                color='black')
+
+        # Draw the error region
+        ax.barh(row[0],  # mean_value? TODO
                 width=right - left,
-                height=error * 2, left=left, alpha=0.5,
-                align='center', color='grey')
+                height=error * 2,  # Full error width
+                left=left,
+                alpha=0.5,
+                align='center',
+                color='grey')
         left = right
-    # Y axis labeling
+
+    # Set Y-axis label based on attribute type
     atr = attribute.split('_')[0]
     if atr == 'P':
         ax.set_ylabel(attribute + ' [%]')
-    if atr == 'D':
+    elif atr == 'D':
         ax.set_ylabel(attribute + r' [$\mu m^2 s^{-1}$]')
-    if atr == 'L':
+    elif atr == 'L':
         ax.set_ylabel(attribute + ' [frames]')
-    if atr == 'N':
+    elif atr == 'N':
         ax.set_ylabel(attribute)
-    if atr == 'confinement_radius':
+    elif atr == 'confinement_radius':
         ax.set_ylabel('confinement_radius' + r'$\mu m$')
+
     ax.set_xlim(left=-0.2)
     ax.set_xlabel('Time [s]')
 
-    # add ligand bar
+    # Add vertical line for ligand addition
     if ligand_name == '':
         ligand_name = '+LIG'
     if len(t_lig) > 0 and t_lig[-1] == 's':
-        ax.axvline(float(t_lig[:-1]) / 60, color='black')
-        ax.text(float(t_lig[:-1]) / 60, ax.get_ylim()[1], ligand_name, ha='center', va='bottom', color='black')
+        ax.axvline(float(t_lig[:-1]) / 60, color='black')  # Convert to minutes
+        ax.text(float(t_lig[:-1]) / 60, ax.get_ylim()[1],
+                ligand_name, ha='center', va='bottom', color='black')
 
     return plt
 
 
 def plot_by_cells(dataframes, attribute, t_lig, ligand_name, binned_data, error_type, clr):
     """
-    :param dataframes: all datafames to be plotted
-    :param attribute: the attribute to be plotted
-    :param t_lig: time the ligand was added
-    :param ligand_name: name of the ligand
-    :param binned_data: list of binned data per coverslip
-    :param error_type: whether to use standard deviation or SEM
-    :param clr: color to plot the datapoints in
-    :return: the created plot
-    plots the given dataframes into a graph and creates bars of the mean values given over a frame of cells
+    Plots attribute values per cell number across multiple dataframes,
+    with optional ligand marking and binned mean/error overlays.
+
+    :param dataframes: List of raw dataframes to be plotted
+    :param attribute: Attribute to be plotted
+            P: Percentage of mobile molecules
+            D: Diffusion coefficient
+            L: Track length
+            N: Number of tracks/particles
+            confinement_radius: confinement radius
+    :param t_lig: Ligand addition time (e.g. '40c')
+    :param ligand_name: Name of the ligand
+    :param binned_data: List of binned data per coverslip
+    :param error_type: 'SEM' or 'SD' to determine error bars
+    :param clr: Color used for individual data points
+    :return: The generated matplotlib plot
     """
     fig, ax = plt.subplots()
 
-    # Plot dots and error bars
+    # Plot individual dots (raw per-cell values)
     for frame in dataframes:
         ax.plot([float(cell_name.split("_")[-1]) for cell_name in frame.iloc[:, 0]], frame[attribute], marker='o',
                 linestyle='None', color=clr)[0].get_color()
 
-    # Plot mean bars and errors
+    # Calculate binned stats across coverslips
     stats = calc_mean_over_cS(binned_data, attribute)
     left = 0
+
+    # Find the binned dataset with the most cells (for x-range info)
     lens = [int(j.iloc[-1, 0].split('-')[1]) for j in binned_data]
     max_index = lens.index(max(lens))
     maxframe = binned_data[max_index]
+
+    # Draw horizontal bars for means and shaded error bars
     for i, row in enumerate(stats):
         if error_type == 'SEM':
             error = row[2]
         else:
             error = row[1]
         right = float(maxframe.iloc[i, 0].split('-')[1]) + 0.5
-        ax.barh(row[0], width=right - left, height=ax.get_ylim()[1] * 0.005, left=left, alpha=1, align='center',
+        ax.barh(row[0],
+                width=right - left,
+                height=ax.get_ylim()[1] * 0.005,
+                left=left,
+                alpha=1,
+                align='center',
                 color='black')
-        ax.barh(row[0], width=right - left, height=error * 2, left=left, alpha=0.5, align='center', color='grey')
+        ax.barh(row[0],
+                width=right - left,
+                height=error * 2, left=left,
+                alpha=0.5,
+                align='center',
+                color='grey')
         left = right
 
-    # Y axis labeling
+    # Label Y-axis according to attribute type
     atr = attribute.split('_')[0]
     if atr == 'P':
         ax.set_ylabel(attribute + ' [%]')
-    if atr == 'D':
+    elif atr == 'D':
         ax.set_ylabel(attribute + r' [$\mu m^2 s^{-1}$]')
-    if atr == 'L':
+    elif atr == 'L':
         ax.set_ylabel(attribute + ' [frames]')
-    if atr == 'N':
+    elif atr == 'N':
         ax.set_ylabel(attribute)
-    if atr == 'confinement_radius':
+    elif atr == 'confinement_radius':
         ax.set_ylabel('confinement_radius' + r' [$\mu m$]')
+
     ax.set_xlim(left=-0.2)
     ax.set_xlabel('Cells')
 
+    # Add ligand marker if defined
     if len(t_lig) > 0 and t_lig[-1] == 'c':
         ax.axvline((float(t_lig[:-1])), color='black')
         if ligand_name == '':
             ligand_name = '+LIG'
-        ax.text((float(t_lig[:-1])), ax.get_ylim()[1], ligand_name, ha='center', va='bottom', color='black')
+        ax.text((float(t_lig[:-1])), ax.get_ylim()[1],
+                ligand_name, ha='center', va='bottom', color='black')
 
     return plt
 
 
 def bin_data_cells(frame, bin_size):
     """
-    :param frame: given dataframe
-    :param bin_size: what interals to create the means over
-    :return: frame with the means, SD and SEM for each time interval
-    compiles data to ranges of means by their cell number, creates statistics over them.
+    Bins a dataframe's rows by cell number, calculates mean, SD, and SEM per bin, and
+    merges all results into a single dataframe with inserted error columns.
+
+    :param frame: Raw dataframe with per-cell data
+    :param bin_size: Bin size in number of cells
+    :return: Dataframe with per-bin means and corresponding SD/SEM columns
     """
     meanframe = pd.DataFrame(columns=frame.columns)
     sdframe = pd.DataFrame(columns=frame.columns)
     semframe = pd.DataFrame(columns=frame.columns)
+
+    # Derive base name for bin labels (e.g., CS2_P3_)
     cs_name = frame.iloc[0, 0].split('_')[0] + '_' + frame.iloc[0, 0].split('_')[-3] + '_'
     binnumber = 0
-    # appends to the frames
     rowindex = 0
     complete = False
+
+    # Iterate through the dataframe and collect bins
     while not complete:
         start = rowindex
         bin = pd.DataFrame(columns=frame.columns)
-        while float(frame.iloc[rowindex, 0].split('_')[
-                        -1]) <= binnumber * bin_size:  # runs until the time is greater than that of the current bin, appends data to a df
+        # Collect rows within the current bin range
+        while float(frame.iloc[rowindex, 0].split('_')[-1]) <= binnumber * bin_size:
             bin.loc[len(bin)] = frame.iloc[rowindex, :]
             rowindex += 1
-            if rowindex == len(frame):  # if the end of the df is reached, end iteration
+            if rowindex == len(frame):  # End of DataFrame reached
                 complete = True
                 break
+        # Skip empty bins (e.g., if no data points fall into this time range)
         if len(bin) == 0:
             binnumber += 1
             continue
 
-        # adds mean, cell name interval, and time interval
+        # Calculate and label mean per bin
         meanframe.loc[len(meanframe)] = bin.iloc[:, 2:].mean()
         meanframe.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
         meanframe.iloc[-1, 1] = str(int(bin.iloc[0, 1])) + "-" + str(int(bin.iloc[-1, 1]))
-        # adds SD, cell name interval, and time interval
+
+        # Calculate and label standard deviation per bin
         sdframe.loc[len(sdframe)] = bin.iloc[:, 2:].std()
         sdframe.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
         sdframe.iloc[-1, 1] = str(int(bin.iloc[0, 1])) + "-" + str(int(bin.iloc[-1, 1]))
-        # adds SEM, cell name interval, and time interval
+
+        # Calculate and label standard error per bin
         semframe.loc[len(semframe)] = bin.iloc[:, 2:].sem()
         semframe.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
         semframe.iloc[-1, 1] = str(int(bin.iloc[0, 1])) + "-" + str(int(bin.iloc[-1, 1]))
 
-    binnumber += 1
+    binnumber += 1  # Shouldn't this have one more tab? TODO
 
+    # Merge all results and insert error columns
     outframe = insert_error(meanframe, sdframe, semframe)
     return outframe
 
 
 def bin_data_time(frame, bin_size):
     """
-    :param frame: given dataframe
-    :param bin_size: what intervals to create the means over
-    :return: frame with the means, SD and SEM for each time interval
-    compiles data to ranges of means by their time index, creates statistics over them.
+    Groups rows of a dataframe into time bins, calculates statistical
+    summaries for each bin, and returns a new dataframe with added SD and SEM columns.
+
+    :param frame: Input dataframe containing single-cell data with time information
+    :param bin_size: Size of time bins (in the same units as column 1 in the dataframe)
+    :return: Dataframe containing the mean, SD, and SEM of each attribute per time bin
     """
+    # Initialize empty dataframes to store the statistical summaries
     meanframe = pd.DataFrame(columns=frame.columns)
     sdframe = pd.DataFrame(columns=frame.columns)
     semframe = pd.DataFrame(columns=frame.columns)
+
+    # Extract coverslip and condition name from the first entry for naming consistency
     cs_name = frame.iloc[0, 0].split('_')[0] + '_' + frame.iloc[0, 0].split('_')[-3] + '_'
+
     complete = False
     binnumber = 1
     rowindex = 0
+
     while not complete:
         start = rowindex
-        bin = pd.DataFrame(columns=frame.columns)
+        bin = pd.DataFrame(columns=frame.columns)  # temporary dataframe for one bin
+
+        # Accumulate rows into the current bin based on the time column
         while frame.iloc[
-            rowindex, 1] < binnumber * bin_size:  # runs until the time is greater than that of the current bin, appends data to a df
+            rowindex, 1] < binnumber * bin_size:
             bin.loc[len(bin)] = frame.iloc[rowindex, :]
             rowindex += 1
-            if rowindex == len(frame):  # if the end of the df is reached, end iteration
+            if rowindex == len(frame):
                 complete = True
                 break
+        # Skip empty bins (e.g., if no data points fall into this time range)
         if len(bin) == 0:
             binnumber += 1
             continue
-        # adds mean and cell name interval
+
+        # Calculate mean of all numeric columns and append to result dataframe
         meanframe.loc[len(meanframe)] = bin.iloc[:, 2:].mean()
         meanframe.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(bin))
-        # adds mean and cell name interval
+
+        # Calculate standard deviation and append to result dataframe
         sdframe.loc[len(sdframe)] = bin.iloc[:, 2:].std()
         sdframe.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(bin))
-        # adds mean and cell name interval
+
+        # Calculate standard error of the mean and append
         semframe.loc[len(semframe)] = bin.iloc[:, 2:].sem()
         semframe.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(bin))
-        # adds time intervals
+
+        # Add time interval label to column index 1
         if len(bin) > 0:
             meanframe.iloc[-1, 1] = str((binnumber - 1) * bin_size) + "-" + str((binnumber) * bin_size)
             sdframe.iloc[-1, 1] = str((binnumber - 1) * bin_size) + "-" + str((binnumber) * bin_size)
             semframe.iloc[-1, 1] = str((binnumber - 1) * bin_size) + "-" + str((binnumber) * bin_size)
 
         binnumber += 1
+
+    # Insert SD and SEM into the meanframe before returning
     outframe = insert_error(meanframe, sdframe, semframe)
     return outframe
 
 
 def test_by_cell(frames, bin_size, ligand, alpha, p1, p2, p3):
     """
-    Runs statistic test over bins of a certain number of cells
-    :param frames: dataframes to test
-    :param bin_size: size of the bins to test (in cells)
-    :param ligand: whether a ligand was used and thus whether significance tests are required
-    :param alpha: alpha interval for normality test results
-    :param p1: * interval for significance
-    :param p2: ** interval for significance
-    :param p3: *** interval for significance
-    :return: dataframes of the test results
+    Runs statistical tests over bins of a certain number of cells.
+
+    :param frames: List of dataframes to test
+    :param bin_size: Number of cells per bin
+    :param ligand: If True, run significance tests between bins
+    :param alpha: Significance level for normality tests
+    :param p1, p2, p3: thresholds for statistical significance (*, **, ***)
+    :return: Dictionary of normality test results, and optionally significance test results
     """
-    normality_frames = {}
+    normality_frames = {}  # stores results of normality tests
     if ligand:
-        significance_frames = {}
+        significance_frames = {}  # stores results of significance tests if enabled
+
     cell_count=[]
+
+    # Determine number of bins based on cell count in first frame
     bin_number = int(len(frames[0]) / bin_size)
     if len(frames[0]) % bin_size != 0:
         bin_number += 1
+
     for j in range(bin_number):
-        tempFrame = pd.DataFrame()
+        tempFrame = pd.DataFrame()  # accumulates all data for current bin
+
+        # Collect all rows from each frame that fall into the current cell bin
         for frame in frames:
-            binframe=pd.DataFrame(columns=tempFrame.columns)
+            binframe = pd.DataFrame(columns=tempFrame.columns)
             for index,row in frame.iterrows():
-                if float(row[0].split('_')[-1]) > j * bin_size and float(row[0].split('_')[-1]) <= (j+1) * bin_size:
-                    binframe=binframe.append(row,ignore_index=True)
-            tempFrame = pd.concat([tempFrame, binframe],
-                                  axis=0)  # all data of a bin is collected here
+                cell_id = float(row[0].split('_')[-1])
+                if j * bin_size < cell_id <= (j + 1) * bin_size:
+                    binframe = binframe.append(row, ignore_index=True)
+            tempFrame = pd.concat([tempFrame, binframe], axis=0)
+
+        # Record number of valid cells in this bin
         try:
             cell_count[j]+= len(tempFrame)
         except IndexError:
             cell_count.append(len(tempFrame))
+
+        # Skip bins with fewer than 3 cells
         if len(tempFrame) < 3:
             for name in tempFrame.columns[2:]:
                 normality_frames[name].loc[len(normality_frames[name])] = pd.Series(
                     [j + 1, str(j * bin_size + 1) + '-' + str((j + 1) * bin_size), 'NaN', 'NaN',
-                     'Dataset too small (' + str(len(tempFrame)) + ')',
-                     'NaN', 'NaN',
-                     'Dataset too small (' + str(len(tempFrame)) + ')']).values
-                significance_frames[name].loc[len(significance_frames[name])] = pd.Series(
-                    ['1-' + str(j + 1), str(j * bin_size + 1) + '-' + str((j + 1) * bin_size), 'NaN', 'NaN',
-                     'Dataset too small (' + str(len(tempFrame)) + ')',
-                     'NaN', 'NaN',
-                     'Dataset too small (' + str(len(tempFrame)) + ')']).values
+                    f'Dataset too small ({len(tempFrame)})', 'NaN', 'NaN',
+                    f'Dataset too small ({len(tempFrame)})']).values
+                if ligand:
+                    significance_frames[name].loc[len(significance_frames[name])] = pd.Series(
+                        [f'1-{j + 1}', f"{j * bin_size + 1}-{(j + 1) * bin_size}", 'NaN', 'NaN',
+                        f'Dataset too small ({len(tempFrame)})', 'NaN', 'NaN',
+                        f'Dataset too small ({len(tempFrame)})']).values
             continue
-        for name in tempFrame.columns[2:]:
-            tempFrame2 = tempFrame.dropna(subset=[name])
-            if name not in normality_frames.keys():  # creates new frame if necessary
-                compare_frame = tempFrame2
-                norm_frame = pd.DataFrame(
-                    columns=['BinNumber', 'Cellrange', 'number of cells','Shapiro statistic', 'Shapiro p', 'Shapiro result',
-                             'Kolmogorov-Smirnov statistic', 'Kolmogorov-Smirnov p',
-                             'Kolmogorov-Smirnov result'])
-                normality_frames[name] = norm_frame
-            # runs the statistic tests
-            shapstat, ps_value, kolstat, pk_value = normality_tests(tempFrame2, name)
-            if ps_value < alpha:
-                sr = 'not norm'
-            else:
-                sr = 'norm'
-            if pk_value < alpha:
-                kr = 'not norm'
-            else:
-                kr = 'norm'
-            normality_frames[name].loc[len(normality_frames[name])] = pd.Series(
-                [j + 1, str(j * bin_size + 1) + '-' + str((j + 1) * bin_size),str(len(tempFrame2)) + ' '+str(cell_count[j] - len(tempFrame2))+' were dropped due to NaN entries', shapstat, ps_value, sr, kolstat,
-                 pk_value, kr]).values
 
+
+        for name in tempFrame.columns[2:]:  # run tests on all measurement columns
+            tempFrame2 = tempFrame.dropna(subset=[name])  # drop NaNs for this column
+
+            # Create new result table for this attribute if needed
+            if name not in normality_frames.keys():
+                compare_frame = tempFrame2
+                norm_frame = pd.DataFrame(columns=[
+                    'BinNumber', 'Cellrange', 'number of cells','Shapiro statistic', 'Shapiro p', 'Shapiro result',
+                    'Kolmogorov-Smirnov statistic', 'Kolmogorov-Smirnov p', 'Kolmogorov-Smirnov result'])
+                normality_frames[name] = norm_frame
+
+            # Run normality tests (Shapiro-Wilk and Kolmogorov-Smirnov)
+            shapstat, ps_value, kolstat, pk_value = normality_tests(tempFrame2, name)
+            sr = 'not norm' if ps_value < alpha else 'norm'
+            kr = 'not norm' if pk_value < alpha else 'norm'
+
+            normality_frames[name].loc[len(normality_frames[name])] = pd.Series([
+                j + 1, f"{j * bin_size + 1}-{(j + 1) * bin_size}",
+                f"{len(tempFrame2)} {cell_count[j] - len(tempFrame2)} were dropped due to NaN entries",
+                shapstat, ps_value, sr,
+                kolstat, pk_value, kr
+            ]).values
+
+            # If ligand is used, compare this bin to the first one using significance tests
             if ligand:
                 if name not in significance_frames.keys():
-                    sign_frame = pd.DataFrame(
-                        columns=['Compared Bins', 'Cellrange', 'number of cells (control: '+str(cell_count)+' cells)', 'paired tTest statistic', 'paired tTest p',
-                                 'paired tTest result',
-                                 'Wilcoxon-signed-rank statistic', 'Wilcoxon p',
-                                 'Wilcoxon result'])
+                    sign_frame = pd.DataFrame(columns=[
+                        'Compared Bins', 'Cellrange', 'number of cells (control: '+str(cell_count)+' cells)',
+                        'paired tTest statistic', 'paired tTest p', 'paired tTest result',
+                        'Wilcoxon-signed-rank statistic', 'Wilcoxon p', 'Wilcoxon result'])
                     significance_frames[name] = sign_frame
                 else:
-                    mstat, pm_value, wilstat, pw_value = significance_tests(tempFrame2,
-                                                                            compare_frame,
-                                                                            name)
+                    mstat, pm_value, wilstat, pw_value = significance_tests(tempFrame2, compare_frame, name)
+
+                    # Determine significance levels for each test
                     if pm_value == 'NaN':
                         tr = 'test not applicable'
+                    elif pm_value < p3:
+                        tr = '***'
+                    elif pm_value < p2:
+                        tr = '**'
                     elif pm_value < p1:
-                        if pm_value < p2:
-                            if pm_value < p3:
-                                tr = '***'
-                            else:
-                                tr = '**'
-                        else:
-                            tr = '*'
+                        tr = '*'
                     else:
                         tr = 'no significant difference'
+
                     if pw_value == 'NaN':
                         wr = 'test not applicable'
+                    elif pw_value < p3:
+                        wr = '***'
+                    elif pw_value < p2:
+                        wr = '**'
                     elif pw_value < p1:
-                        if pw_value < p2:
-                            if pw_value < p3:
-                                wr = '***'
-                            else:
-                                wr = '**'
-                        else:
-                            wr = '*'
+                        wr = '*'
                     else:
                         wr = 'no significant difference'
-                    significance_frames[name].loc[len(significance_frames[name])] = pd.Series(
-                        ['1-' + str(j + 1), str(j * bin_size + 1) + '-' + str((j + 1) * bin_size),str(len(tempFrame2)) + ' '+str(cell_count[j] -len(tempFrame2))+' were dropped due to NaN entries', mstat, pm_value, tr,
-                         wilstat, pw_value, wr]).values
 
-    if ligand:
-        return normality_frames, significance_frames
-    else:
-        return normality_frames
+                    significance_frames[name].loc[len(significance_frames[name])] = pd.Series([
+                        f'1-{j + 1}', f"{j * bin_size + 1}-{(j + 1) * bin_size}",
+                        f"{len(tempFrame2)} {cell_count[j] - len(tempFrame2)} were dropped due to NaN entries",
+                        mstat, pm_value, tr,
+                        wilstat, pw_value, wr
+                    ]).values
+
+    # Return both result sets if ligand was used, else only normality results
+    return (normality_frames, significance_frames) if ligand else normality_frames
 
 
 def test_by_time(frames, bin_size, ligand, alpha, p1, p2, p3):
     """
-    Runs statistic test over bins of a certain number of cells
-    :param frames: dataframes to test
-    :param bin_size: size of the bins to test (in seconds)
-    :param ligand: whether a ligand was used and thus whether significance tests are required
-    :param alpha: alpha interval for normality test results
-    :param p1: * interval for significance
-    :param p2: ** interval for significance
-    :param p3: *** interval for significance
-    :return: dataframes of the test results
-    """
-    normality_frames = {}
-    if ligand:
-        significance_frames = {}
+    Runs statistical tests over time-based bins.
 
+    :param frames: List of dataframes to test
+    :param bin_size: Duration of each bin (in seconds)
+    :param ligand: If True, run significance tests between bins
+    :param alpha: Significance level for normality tests
+    :param p1, p2, p3: thresholds for statistical significance (*, **, ***)
+    :return: Dictionary of normality test results, and optionally significance test results
+    """
+    normality_frames = {}  # store results of normality tests
+    if ligand:
+        significance_frames = {}  # store significance test results if enabled
+
+    # Determine the maximum time across all frames
     max_times = []
     for frame in frames:
         max_times.append(max(frame.iloc[:, 1]))
     max_time = max(max_times)
+
+    # Determine the number of time bins needed
     bin_number = int(max_time / bin_size + 1)
     if max_time % bin_size != 0:
         bin_number += 1
+
+
     for i in range(1, bin_number):
         tempFrame = pd.DataFrame()
+
+        # Collect all rows that fall into the current time bin
         for frame in frames:
             rowindex = 0
             while frame.iloc[rowindex, 1] < i * bin_size:
@@ -516,143 +606,148 @@ def test_by_time(frames, bin_size, ligand, alpha, p1, p2, p3):
                 rowindex += 1
                 if rowindex == len(frame):
                     break
+
+        # Skip bins with insufficient data
         if len(tempFrame) < 3:
             for name in tempFrame.columns[2:]:
                 normality_frames[name].loc[len(normality_frames[name])] = pd.Series(
-                    [i + 1, str(min(tempFrame['Time'])) + '-' + str(max(tempFrame['Time'])), 'NaN', 'NaN',
+                    [i + 1, f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}", 'NaN', 'NaN',
                      'Dataset too small', 'NaN', 'NaN', 'Dataset too small']).values
                 if ligand:
                     significance_frames[name].loc[len(significance_frames[name])] = pd.Series(
-                        ['1-' + str(i), str(min(tempFrame['Time'])) + '-' + str(max(tempFrame['Time'])), 'NaN', 'NaN',
-                         'Dataset too small', 'NaN', 'NaN',
-                         'Dataset too small']).values
+                        [f'1-{i}', f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}", 'NaN', 'NaN',
+                         'Dataset too small', 'NaN', 'NaN', 'Dataset too small']).values
             continue
-        for name in tempFrame.columns[2:]:
+
+        for name in tempFrame.columns[2:]:  # analyze each measurement column
             if name not in normality_frames.keys():
-                compare_frame = tempFrame
-                norm_frame = pd.DataFrame(
-                    columns=['BinNumber', 'Timerange', 'Shapiro statistic', 'Shapiro p', 'Shapiro result',
-                             'Kolmogorov-Smirnov statistic', 'Kolmogorov-Smirnov p',
-                             'Kolmogorov-Smirnov result'])
+                compare_frame = tempFrame  # store the first bin for comparison
+                norm_frame = pd.DataFrame(columns=[
+                    'BinNumber', 'Timerange', 'Shapiro statistic', 'Shapiro p', 'Shapiro result',
+                    'Kolmogorov-Smirnov statistic', 'Kolmogorov-Smirnov p', 'Kolmogorov-Smirnov result'])
                 normality_frames[name] = norm_frame
+
+            # Run normality tests
             shapstat, ps_value, kolstat, pk_value = normality_tests(tempFrame.iloc[:, 2:], name)
-            if ps_value < alpha:
-                sr = 'not norm'
-            else:
-                sr = 'norm'
-            if pk_value < alpha:
-                kr = 'not norm'
-            else:
-                kr = 'norm'
-            normality_frames[name].loc[len(normality_frames[name])] = pd.Series(
-                [i + 1, str(min(tempFrame['Time'])) + '-' + str(max(tempFrame['Time'])), shapstat, ps_value, sr,
-                 kolstat, pk_value, kr]).values
+            sr = 'not norm' if ps_value < alpha else 'norm'
+            kr = 'not norm' if pk_value < alpha else 'norm'
+
+            normality_frames[name].loc[len(normality_frames[name])] = pd.Series([
+                i + 1, f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}", shapstat, ps_value, sr,
+                kolstat, pk_value, kr]).values
+
+            # Run significance tests against first bin if enabled
             if ligand:
                 if name not in significance_frames.keys():
-                    sign_frame = pd.DataFrame(
-                        columns=['Compared Bins', 'Timerange', 'Mann-Whitney U statistic', 'Mann-Whitney U p',
-                                 'Mann-Whitney U result',
-                                 'Wilcoxon-signed-rank statistic', 'Wilcoxon p',
-                                 'Wilcoxon result'])
+                    sign_frame = pd.DataFrame(columns=[
+                        'Compared Bins', 'Timerange',
+                        'Mann-Whitney U statistic', 'Mann-Whitney U p', 'Mann-Whitney U result',
+                        'Wilcoxon-signed-rank statistic', 'Wilcoxon p', 'Wilcoxon result'])
                     significance_frames[name] = sign_frame
                 else:
-                    tstat, pt_value, wilstat, pw_value = significance_tests(tempFrame.iloc[:, 2:],
-                                                                            compare_frame,
-                                                                            name)
+                    tstat, pt_value, wilstat, pw_value = significance_tests(
+                        tempFrame.iloc[:, 2:], compare_frame, name)
+
+                    # Determine significance annotations
                     if pt_value == 'NaN':
                         tr = 'test not applicable'
+                    elif pt_value < p3:
+                        tr = '***'
+                    elif pt_value < p2:
+                        tr = '**'
                     elif pt_value < p1:
-                        if pt_value < p2:
-                            if pt_value < p3:
-                                tr = '***'
-                            else:
-                                tr = '**'
-                        else:
-                            tr = '*'
+                        tr = '*'
                     else:
                         tr = 'no significant difference'
+
                     if pw_value == 'NaN':
                         wr = 'test not applicable'
+                    elif pw_value < p3:
+                        wr = '***'
+                    elif pw_value < p2:
+                        wr = '**'
                     elif pw_value < p1:
-                        if pw_value < p2:
-                            if pw_value < p3:
-                                wr = '***'
-                            else:
-                                wr = '**'
-                        else:
-                            wr = '*'
+                        wr = '*'
                     else:
                         wr = 'no significant difference'
-                    significance_frames[name].loc[len(significance_frames[name])] = pd.Series(
-                        ['1-' + str(i), str(min(tempFrame['Time'])) + '-' + str(max(tempFrame['Time'])), tstat,
-                         pt_value, tr, wilstat, pw_value, wr]).values
 
-    if ligand:
-        return normality_frames, significance_frames
-    else:
-        return normality_frames
+                    significance_frames[name].loc[len(significance_frames[name])] = pd.Series([
+                        f'1-{i}', f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}",
+                        tstat, pt_value, tr, wilstat, pw_value, wr]).values
+
+    # Return both result sets if ligand was used, else only normality results
+    return (normality_frames, significance_frames) if ligand else normality_frames
 
 
 def normality_tests(dataframe, attribute):
     """
-    :param dataframe: a given dataframe to test the normality for
-    :param attribute: what attribute to test for
-    :return: test statistics and values
+    Run two normality tests on a selected attribute.
+
+    :param dataframe: Dataframe with relevant data
+    :param attribute: Column name of the variable to test
+    :return: Statistics and p-values from Shapiro and Kolmogorov-Smirnov tests
     """
     shapstat, ps_value = scy.shapiro(dataframe[attribute])
-    kolstat, pk_value = scy.shapiro(dataframe[attribute])
+    kolstat, pk_value = scy.kstest(dataframe[attribute], 'norm', args=(dataframe[attribute].mean(), dataframe[attribute].std()))  # this was not the right test! test if it works now! TODO
     return shapstat, ps_value, kolstat, pk_value
 
 
 def significance_tests(frame1, frame2, attribute):
     """
-    :param frame1: distribution to compare to
-    :param frame2: distribution to compare
-    :param attribute: attribute to compare
-    :return: test statistics and values
+    Compares two distributions using paired tests.
+
+    :param frame1: Reference distribution
+    :param frame2: Comparison distribution
+    :param attribute: Column to compare
+    :return: Test statistics and p-values for paired t-test and Wilcoxon test
     """
     if len(frame1) == len(frame2):
         try:
-            mstat, pm_value = scy.ttest_rel(frame1[attribute], frame2[attribute])
+            mstat, pm_value = scy.ttest_rel(frame1[attribute], frame2[attribute])  # paired t-test
         except ValueError:
             mstat, pm_value = 'not applicable to data', 'NaN'
         try:
-            wilstat, pw_value = scy.wilcoxon(frame1[attribute], frame2[attribute])
+            wilstat, pw_value = scy.wilcoxon(frame1[attribute], frame2[attribute])  # Wilcoxon signed-rank
         except ValueError:
             wilstat, pw_value = 'not applicable to data', 'NaN'
     else:
-        mstat, pm_value, wilstat, pw_value = 'uneven sample size: ' + str(len(frame1)) + " vs " + str(
-            len(frame2)), 'NaN', 'uneven sample size: ' + str(len(frame1)) + " vs " + str(len(frame2)), 'NaN'
+        # For mismatched sample sizes, return explanation and NaNs
+        mstat = wilstat = f'uneven sample size: {len(frame1)} vs {len(frame2)}'
+        pm_value = pw_value = 'NaN'
     return mstat, pm_value, wilstat, pw_value
 
 
 def compile_columns(frames, columns, renameColumns):
     """
-    compiles columns of the same name in a single dataframe
-    :param frames: list of dataframes
-    :param columns: list of column names
-    :param renameColumns: whether to rename columns to prevent duplicate column names
-    :return: a single dataframe consisting of all matching columns
-    in the given list
+    Merges columns with matching names from multiple dataframes.
+
+    :param frames: List of input dataframes
+    :param columns: List of substrings to match in column names
+    :param renameColumns: Whether to prefix columns with date to avoid duplication
+    :return: A combined DataFrame of selected columns
     """
     compiled_frame = pd.DataFrame()
     for df in frames:
+        # Extract identifier from filename (e.g., date and well position)
         date = df.iloc[0, 0].split('_')[0] + '_' + df.iloc[0, 0].split('_')[-3] + ': '
+        # Select relevant columns
         common_columns = [column for column in df.columns if any(sub in column for sub in columns)]
         comp_df = df[common_columns]
 
+        # Optionally rename columns to avoid duplicates
         if renameColumns:
             comp_df = comp_df.rename(columns={col: date + col for col in comp_df.columns})
         compiled_frame = pd.concat([compiled_frame, comp_df], axis=1)
-    if not renameColumns:
-        return comp_df
-    return compiled_frame
+
+    return comp_df if not renameColumns else compiled_frame
 
 
 def generate_shortname(value):
     """
-    :param value: value of a dataframe field
-    :return: the value without a colon at the end
+    Cleans up values for HDF5 writing by removing trailing colons.
+
+    :param value: Value to clean
+    :return: Sanitized string representation
     """
     if type(value) != str:
         return str(value)
@@ -666,31 +761,38 @@ def generate_shortname(value):
 
 def cut_cellnames(name):
     """
-    :param name: name of a cell field
-    :return: the cell number
-    """
+    Extracts cell number from full identifier.
 
+    :param name: Full name string (e.g., "sample_cell_42")
+    :return: Extracted cell number (e.g., "42")
+    """
     return name.split("_")[-1]
 
 
 def output_folder(file, folder, datasets):
     """
-    writes data into a sheet in a group of a h5 file
-    :param file: the h5 file to write to
-    :param folder: name for the folder to write the data into
-    :param datasets: the dataframe to write
+    Writes datasets to a group in an HDF5 file.
+
+    :param file: Open h5py file handle
+    :param folder: Name of group (folder) to write into
+    :param datasets: List of [name, DataFrame] pairs to write
     """
     fold = file.create_group(folder)
-    for i, set in enumerate(
-            datasets):  # set consists of a 2 entry list with the name of the set in the first and the dataframe in the second entry
+    for i, set in enumerate(datasets):
         if folder != 'metadata':
+            # Add units to column names
             set[1].columns = rename_columns(set[1].columns.tolist())
+        # Sanitize each cell value for writing
         for col in set[1].columns:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 set[1][col] = set[1][col].apply(generate_shortname)
+
+        # Define variable-length string dtype for each column
         compound_dtype = np.dtype([(a, h5py.special_dtype(vlen=str)) for a in set[1].columns])
         tab = fold.create_dataset(set[0], (len(set[1]),), dtype=compound_dtype)
+
+        # Write each column's data as a string array
         for i in range(set[1].shape[1]):
             data_array = np.array(set[1].iloc[:, i], dtype=compound_dtype)
             tab[set[1].columns[i]] = data_array
@@ -698,7 +800,10 @@ def output_folder(file, folder, datasets):
 
 def rename_columns(old_col_names):
     """
-    Adds units to column names
+    Appends units to column names based on their semantic label.
+
+    :param old_col_names: List of original column names
+    :return: List of renamed columns with units
     """
     new_col_names = []
     for col in old_col_names:
@@ -715,6 +820,8 @@ def rename_columns(old_col_names):
         else:
             new_col_names.append(col)
     return new_col_names
+
+# stopped here TODO
 
 
 def load_cs(sorted, coverslip, file, tiffiles, coverslip_data):
