@@ -821,7 +821,7 @@ def rename_columns(old_col_names):
             new_col_names.append(col)
     return new_col_names
 
-# stopped here TODO
+# stopped annotating here TODO
 
 
 def load_cs(sorted, coverslip, file, tiffiles, coverslip_data):
