@@ -1,4 +1,5 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QComboBox
+from widgets.common_buttons import create_back_button, create_confirm_button, create_add_option_button
 
 class OneColorPage(QWidget):
     def __init__(self, switch_callback):
@@ -9,14 +10,9 @@ class OneColorPage(QWidget):
 
         self.add_dropdown()
 
-        btn_add = QPushButton("➕ Add option")
-        btn_add.clicked.connect(self.add_dropdown)
-
-        btn_next = QPushButton("✅ Next")
-        btn_next.clicked.connect(lambda: self.switch_callback("textfields"))
-
-        btn_back = QPushButton("⬅️ Back")
-        btn_back.clicked.connect(lambda: self.switch_callback("start"))
+        btn_add = create_add_option_button(self.add_dropdown)
+        btn_next = create_confirm_button(lambda: self.switch_callback("textfields"))
+        btn_back = create_back_button(lambda: self.switch_callback("start"))
 
         self.layout.addLayout(self.dropdown_container)
         self.layout.addWidget(btn_add)
