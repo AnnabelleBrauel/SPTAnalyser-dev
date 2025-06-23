@@ -35,7 +35,7 @@ def get_matching_files(directory, target, exclusion_string):
     :return: List of matching file paths
     """
     matching_files = []
-    for path, subdirs, files in os.walk(directory):
+    for path, subdirectories, files in os.walk(directory):
         for name in files:
             if target.lower() in name.lower():
                 if not any([True for string in exclusion_string if string.lower() in name.lower()]):
@@ -43,18 +43,18 @@ def get_matching_files(directory, target, exclusion_string):
     return matching_files
 
 
-def parent_string(substring, parents, exclusionstr):
+def parent_string(substring, parents, exclusion_str):
     """
     Searches a list of strings ('parents') for entries that contain a specific substring
     but do NOT contain a given exclusion string.
 
     :param substring: Substring to search for
     :param parents: List of potential parent strings
-    :param exclusionstr: List of strings that must not be present in the parent string
+    :param exclusion_str: List of strings that must not be present in the parent string
     :return: A single matching string (raises exception if ambiguous or not found)
     """
     parent = [a for a in parents if
-              (substring in a and exclusionstr not in a)]
+              (substring in a and exclusion_str not in a)]
     if len(parent) > 1:
         raise IncorrectConfigException("multiple options when looking for " + substring)
     elif len(parent) == 0:
@@ -82,42 +82,42 @@ def sort_cells(cells):
             except IndexError:
                 digits.append([])  # Add new sublist if needed
                 continue
-    sorted = []
+    sorted_list = []
     for dig in digits:
         dig.sort()
-        sorted += dig
-    return sorted
+        sorted_list += dig
+    return sorted_list
 
 
-def insert_error(meanframe, sdframe, semframe):
+def insert_error(mean_frame, sd_frame, sem_frame):
     """
     Inserts standard deviation (SD) and standard error of the mean (SEM) columns
     into a dataframe containing mean values, directly after their corresponding mean column.
 
-    :param meanframe: Dataframe with mean values
-    :param sdframe: Dataframe with standard deviations
-    :param semframe: Dataframe with standard errors of the mean
+    :param mean_frame: Dataframe with mean values
+    :param sd_frame: Dataframe with standard deviations
+    :param sem_frame: Dataframe with standard errors of the mean
     :return: Modified dataframe with SD and SEM inserted
     """
     # Remove metadata columns (assumes first two are not data columns)
-    sdframe = sdframe.iloc[:, 2:]
-    semframe = semframe.iloc[:, 2:]
+    sd_frame = sd_frame.iloc[:, 2:]
+    sem_frame = sem_frame.iloc[:, 2:]
     i = 0
-    while i < sdframe.shape[1]:
-        name = sdframe.columns[i]
-        sd = sdframe.iloc[:, i]
-        sem = semframe.iloc[:, i]
+    while i < sd_frame.shape[1]:
+        name = sd_frame.columns[i]
+        sd = sd_frame.iloc[:, i]
+        sem = sem_frame.iloc[:, i]
         # Rename error columns to indicate type
         sd.rename(name + '_SD', inplace=True)
         sem.rename(name + '_SEM', inplace=True)
         # Insert error columns right after the mean column
-        meanframe.insert(i * 3 + 3, name + '_SD', sd)
-        meanframe.insert(i * 3 + 4, name + '_SEM', sem)
+        mean_frame.insert(i * 3 + 3, name + '_SD', sd)
+        mean_frame.insert(i * 3 + 4, name + '_SEM', sem)
         i += 1
-    return meanframe
+    return mean_frame
 
 
-def calc_mean_over_cS(binned_data, attribute):
+def calc_mean_over_cs(binned_data, attribute):
     """
     Calculates the mean, standard deviation, and standard error of a specified attribute
     across a list of binned dataframes (e.g. from different coverslips).
@@ -146,7 +146,7 @@ def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_t
     """
     Plots time-dependent data from multiple dataframes as individual dots and average bars with error shading.
 
-    :param dataframes: List of raw datafames to be plotted (dots)
+    :param dataframes: List of raw dataframes to be plotted (dots)
     :param attribute: Attribute to be plotted:
             P: Percentage of mobile molecules
             D: Diffusion coefficient
@@ -171,14 +171,14 @@ def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_t
         )[0].get_color()
 
     # Calculate mean, std, sem across coverslips
-    stats = calc_mean_over_cS(binned_data, attribute)
+    stats = calc_mean_over_cs(binned_data, attribute)
 
     left = 0
-    longestdf = ''
+    longest_df = ''
     # Determine the longest dataframe for time bin labels
     for df in binned_data:
-        if len(df) > len(longestdf):
-            longestdf = df
+        if len(df) > len(longest_df):
+            longest_df = df
 
     # Plot horizontal bars for mean values with error shading
     for i, row in enumerate(stats):
@@ -189,10 +189,10 @@ def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_t
 
         # Calculate right edge of the time bin (convert from seconds to minutes)
         if i == len(stats) - 1:
-            right = float(longestdf.iloc[i, 1].split('-')[1]) / 60
+            right = float(longest_df.iloc[i, 1].split('-')[1]) / 60
         else:
-            right = (((float(longestdf.iloc[i + 1, 1].split('-')[0]) - float(
-                longestdf.iloc[i, 1].split('-')[1])) / 2) + float(longestdf.iloc[i, 1].split('-')[1])) / 60
+            right = (((float(longest_df.iloc[i + 1, 1].split('-')[0]) - float(
+                longest_df.iloc[i, 1].split('-')[1])) / 2) + float(longest_df.iloc[i, 1].split('-')[1])) / 60
 
         # Draw the mean bar
         ax.barh(row[0],  # mean_value? TODO
@@ -267,7 +267,7 @@ def plot_by_cells(dataframes, attribute, t_lig, ligand_name, binned_data, error_
                 linestyle='None', color=clr)[0].get_color()
 
     # Calculate binned stats across coverslips
-    stats = calc_mean_over_cS(binned_data, attribute)
+    stats = calc_mean_over_cs(binned_data, attribute)
     left = 0
 
     # Find the binned dataset with the most cells (for x-range info)
@@ -333,51 +333,50 @@ def bin_data_cells(frame, bin_size):
     :param bin_size: Bin size in number of cells
     :return: Dataframe with per-bin means and corresponding SD/SEM columns
     """
-    meanframe = pd.DataFrame(columns=frame.columns)
-    sdframe = pd.DataFrame(columns=frame.columns)
-    semframe = pd.DataFrame(columns=frame.columns)
+    mean_frame = pd.DataFrame(columns=frame.columns)
+    sd_frame = pd.DataFrame(columns=frame.columns)
+    sem_frame = pd.DataFrame(columns=frame.columns)
 
     # Derive base name for bin labels (e.g., CS2_P3_)
     cs_name = frame.iloc[0, 0].split('_')[0] + '_' + frame.iloc[0, 0].split('_')[-3] + '_'
     binnumber = 0
-    rowindex = 0
+    row_index = 0
     complete = False
 
     # Iterate through the dataframe and collect bins
     while not complete:
-        start = rowindex
-        bin = pd.DataFrame(columns=frame.columns)
+        current_bin = pd.DataFrame(columns=frame.columns)
         # Collect rows within the current bin range
-        while float(frame.iloc[rowindex, 0].split('_')[-1]) <= binnumber * bin_size:
-            bin.loc[len(bin)] = frame.iloc[rowindex, :]
-            rowindex += 1
-            if rowindex == len(frame):  # End of DataFrame reached
+        while float(frame.iloc[row_index, 0].split('_')[-1]) <= binnumber * bin_size:
+            current_bin.loc[len(current_bin)] = frame.iloc[row_index, :]
+            row_index += 1
+            if row_index == len(frame):  # End of DataFrame reached
                 complete = True
                 break
         # Skip empty bins (e.g., if no data points fall into this time range)
-        if len(bin) == 0:
+        if len(current_bin) == 0:
             binnumber += 1
             continue
 
         # Calculate and label mean per bin
-        meanframe.loc[len(meanframe)] = bin.iloc[:, 2:].mean()
-        meanframe.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
-        meanframe.iloc[-1, 1] = str(int(bin.iloc[0, 1])) + "-" + str(int(bin.iloc[-1, 1]))
+        mean_frame.loc[len(mean_frame)] = current_bin.iloc[:, 2:].mean()
+        mean_frame.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
+        mean_frame.iloc[-1, 1] = str(int(current_bin.iloc[0, 1])) + "-" + str(int(current_bin.iloc[-1, 1]))
 
         # Calculate and label standard deviation per bin
-        sdframe.loc[len(sdframe)] = bin.iloc[:, 2:].std()
-        sdframe.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
-        sdframe.iloc[-1, 1] = str(int(bin.iloc[0, 1])) + "-" + str(int(bin.iloc[-1, 1]))
+        sd_frame.loc[len(sd_frame)] = current_bin.iloc[:, 2:].std()
+        sd_frame.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
+        sd_frame.iloc[-1, 1] = str(int(current_bin.iloc[0, 1])) + "-" + str(int(current_bin.iloc[-1, 1]))
 
         # Calculate and label standard error per bin
-        semframe.loc[len(semframe)] = bin.iloc[:, 2:].sem()
-        semframe.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
-        semframe.iloc[-1, 1] = str(int(bin.iloc[0, 1])) + "-" + str(int(bin.iloc[-1, 1]))
+        sem_frame.loc[len(sem_frame)] = current_bin.iloc[:, 2:].sem()
+        sem_frame.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
+        sem_frame.iloc[-1, 1] = str(int(current_bin.iloc[0, 1])) + "-" + str(int(current_bin.iloc[-1, 1]))
 
     binnumber += 1  # Shouldn't this have one more tab? TODO
 
     # Merge all results and insert error columns
-    outframe = insert_error(meanframe, sdframe, semframe)
+    outframe = insert_error(mean_frame, sd_frame, sem_frame)
     return outframe
 
 
@@ -391,56 +390,56 @@ def bin_data_time(frame, bin_size):
     :return: Dataframe containing the mean, SD, and SEM of each attribute per time bin
     """
     # Initialize empty dataframes to store the statistical summaries
-    meanframe = pd.DataFrame(columns=frame.columns)
-    sdframe = pd.DataFrame(columns=frame.columns)
-    semframe = pd.DataFrame(columns=frame.columns)
+    mean_frame = pd.DataFrame(columns=frame.columns)
+    sd_frame = pd.DataFrame(columns=frame.columns)
+    sem_frame = pd.DataFrame(columns=frame.columns)
 
     # Extract coverslip and condition name from the first entry for naming consistency
     cs_name = frame.iloc[0, 0].split('_')[0] + '_' + frame.iloc[0, 0].split('_')[-3] + '_'
 
     complete = False
-    binnumber = 1
-    rowindex = 0
+    bin_number = 1
+    row_index = 0
 
     while not complete:
-        start = rowindex
-        bin = pd.DataFrame(columns=frame.columns)  # temporary dataframe for one bin
+        start = row_index
+        current_bin = pd.DataFrame(columns=frame.columns)  # temporary dataframe for one bin
 
         # Accumulate rows into the current bin based on the time column
         while frame.iloc[
-            rowindex, 1] < binnumber * bin_size:
-            bin.loc[len(bin)] = frame.iloc[rowindex, :]
-            rowindex += 1
-            if rowindex == len(frame):
+            row_index, 1] < bin_number * bin_size:
+            current_bin.loc[len(current_bin)] = frame.iloc[row_index, :]
+            row_index += 1
+            if row_index == len(frame):
                 complete = True
                 break
         # Skip empty bins (e.g., if no data points fall into this time range)
-        if len(bin) == 0:
-            binnumber += 1
+        if len(current_bin) == 0:
+            bin_number += 1
             continue
 
         # Calculate mean of all numeric columns and append to result dataframe
-        meanframe.loc[len(meanframe)] = bin.iloc[:, 2:].mean()
-        meanframe.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(bin))
+        mean_frame.loc[len(mean_frame)] = current_bin.iloc[:, 2:].mean()
+        mean_frame.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(current_bin))
 
         # Calculate standard deviation and append to result dataframe
-        sdframe.loc[len(sdframe)] = bin.iloc[:, 2:].std()
-        sdframe.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(bin))
+        sd_frame.loc[len(sd_frame)] = current_bin.iloc[:, 2:].std()
+        sd_frame.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(current_bin))
 
         # Calculate standard error of the mean and append
-        semframe.loc[len(semframe)] = bin.iloc[:, 2:].sem()
-        semframe.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(bin))
+        sem_frame.loc[len(sem_frame)] = current_bin.iloc[:, 2:].sem()
+        sem_frame.iloc[-1, 0] = cs_name + "cell_" + str(start) + "-" + str(start + len(current_bin))
 
         # Add time interval label to column index 1
-        if len(bin) > 0:
-            meanframe.iloc[-1, 1] = str((binnumber - 1) * bin_size) + "-" + str((binnumber) * bin_size)
-            sdframe.iloc[-1, 1] = str((binnumber - 1) * bin_size) + "-" + str((binnumber) * bin_size)
-            semframe.iloc[-1, 1] = str((binnumber - 1) * bin_size) + "-" + str((binnumber) * bin_size)
+        if len(current_bin) > 0:
+            mean_frame.iloc[-1, 1] = str((bin_number - 1) * bin_size) + "-" + str(bin_number * bin_size)
+            sd_frame.iloc[-1, 1] = str((bin_number - 1) * bin_size) + "-" + str(bin_number * bin_size)
+            sem_frame.iloc[-1, 1] = str((bin_number - 1) * bin_size) + "-" + str(bin_number * bin_size)
 
-        binnumber += 1
+        bin_number += 1
 
-    # Insert SD and SEM into the meanframe before returning
-    outframe = insert_error(meanframe, sdframe, semframe)
+    # Insert SD and SEM into the mean frame before returning
+    outframe = insert_error(mean_frame, sd_frame, sem_frame)
     return outframe
 
 
@@ -456,8 +455,10 @@ def test_by_cell(frames, bin_size, ligand, alpha, p1, p2, p3):
     :return: Dictionary of normality test results, and optionally significance test results
     """
     normality_frames = {}  # stores results of normality tests
-    if ligand:
-        significance_frames = {}  # stores results of significance tests if enabled
+    significance_frames = {}  # stores results of significance tests if enabled
+    if not ligand:
+        significance_frames = None
+    compare_frame = pd.DataFrame()
 
     cell_count=[]
 
@@ -467,100 +468,101 @@ def test_by_cell(frames, bin_size, ligand, alpha, p1, p2, p3):
         bin_number += 1
 
     for j in range(bin_number):
-        tempFrame = pd.DataFrame()  # accumulates all data for current bin
+        temp_frame = pd.DataFrame()  # accumulates all data for current bin
 
         # Collect all rows from each frame that fall into the current cell bin
         for frame in frames:
-            binframe = pd.DataFrame(columns=tempFrame.columns)
+            bin_frame = pd.DataFrame(columns=temp_frame.columns)
             for index,row in frame.iterrows():
                 cell_id = float(row[0].split('_')[-1])
                 if j * bin_size < cell_id <= (j + 1) * bin_size:
-                    binframe = binframe.append(row, ignore_index=True)
-            tempFrame = pd.concat([tempFrame, binframe], axis=0)
+                    bin_frame = bin_frame.append(row, ignore_index=True)
+            temp_frame = pd.concat([temp_frame, bin_frame], axis=0)
 
         # Record number of valid cells in this bin
         try:
-            cell_count[j]+= len(tempFrame)
+            cell_count[j]+= len(temp_frame)
         except IndexError:
-            cell_count.append(len(tempFrame))
+            cell_count.append(len(temp_frame))
 
         # Skip bins with fewer than 3 cells
-        if len(tempFrame) < 3:
-            for name in tempFrame.columns[2:]:
+        if len(temp_frame) < 3:
+            for name in temp_frame.columns[2:]:
                 normality_frames[name].loc[len(normality_frames[name])] = pd.Series(
                     [j + 1, str(j * bin_size + 1) + '-' + str((j + 1) * bin_size), 'NaN', 'NaN',
-                    f'Dataset too small ({len(tempFrame)})', 'NaN', 'NaN',
-                    f'Dataset too small ({len(tempFrame)})']).values
+                    f'Dataset too small ({len(temp_frame)})', 'NaN', 'NaN',
+                    f'Dataset too small ({len(temp_frame)})']).values
                 if ligand:
                     significance_frames[name].loc[len(significance_frames[name])] = pd.Series(
                         [f'1-{j + 1}', f"{j * bin_size + 1}-{(j + 1) * bin_size}", 'NaN', 'NaN',
-                        f'Dataset too small ({len(tempFrame)})', 'NaN', 'NaN',
-                        f'Dataset too small ({len(tempFrame)})']).values
+                        f'Dataset too small ({len(temp_frame)})', 'NaN', 'NaN',
+                        f'Dataset too small ({len(temp_frame)})']).values
             continue
 
 
-        for name in tempFrame.columns[2:]:  # run tests on all measurement columns
-            tempFrame2 = tempFrame.dropna(subset=[name])  # drop NaNs for this column
+        for name in temp_frame.columns[2:]:  # run tests on all measurement columns
+            temp_frame2 = temp_frame.dropna(subset=[name])  # drop NaNs for this column
 
             # Create new result table for this attribute if needed
             if name not in normality_frames.keys():
-                compare_frame = tempFrame2
+                if compare_frame.empty:
+                    compare_frame = temp_frame2.copy()
                 norm_frame = pd.DataFrame(columns=[
-                    'BinNumber', 'Cellrange', 'number of cells','Shapiro statistic', 'Shapiro p', 'Shapiro result',
+                    'bin number', 'cell range', 'number of cells','Shapiro statistic', 'Shapiro p', 'Shapiro result',
                     'Kolmogorov-Smirnov statistic', 'Kolmogorov-Smirnov p', 'Kolmogorov-Smirnov result'])
                 normality_frames[name] = norm_frame
 
             # Run normality tests (Shapiro-Wilk and Kolmogorov-Smirnov)
-            shapstat, ps_value, kolstat, pk_value = normality_tests(tempFrame2, name)
-            sr = 'not norm' if ps_value < alpha else 'norm'
-            kr = 'not norm' if pk_value < alpha else 'norm'
+            statistics_shapiro, p_value_shapiro, statistics_kolmogorov, p_value_kolmogorov = normality_tests(temp_frame2, name)
+            sr = 'not norm' if p_value_shapiro < alpha else 'norm'
+            kr = 'not norm' if p_value_kolmogorov < alpha else 'norm'
 
             normality_frames[name].loc[len(normality_frames[name])] = pd.Series([
                 j + 1, f"{j * bin_size + 1}-{(j + 1) * bin_size}",
-                f"{len(tempFrame2)} {cell_count[j] - len(tempFrame2)} were dropped due to NaN entries",
-                shapstat, ps_value, sr,
-                kolstat, pk_value, kr
+                f"{len(temp_frame2)} {cell_count[j] - len(temp_frame2)} were dropped due to NaN entries",
+                statistics_shapiro, p_value_shapiro, sr,
+                statistics_kolmogorov, p_value_kolmogorov, kr
             ]).values
 
             # If ligand is used, compare this bin to the first one using significance tests
             if ligand:
                 if name not in significance_frames.keys():
                     sign_frame = pd.DataFrame(columns=[
-                        'Compared Bins', 'Cellrange', 'number of cells (control: '+str(cell_count)+' cells)',
+                        'compared bins', 'cell range', 'number of cells (control: '+str(cell_count)+' cells)',
                         'paired tTest statistic', 'paired tTest p', 'paired tTest result',
                         'Wilcoxon-signed-rank statistic', 'Wilcoxon p', 'Wilcoxon result'])
                     significance_frames[name] = sign_frame
                 else:
-                    mstat, pm_value, wilstat, pw_value = significance_tests(tempFrame2, compare_frame, name)
+                    stat_t_test, p_value_t_test, statistics_wilcoxon, p_value_wilcoxon = significance_tests(temp_frame2, compare_frame, name)
 
                     # Determine significance levels for each test
-                    if pm_value == 'NaN':
+                    if p_value_t_test == 'NaN':
                         tr = 'test not applicable'
-                    elif pm_value < p3:
+                    elif p_value_t_test < p3:
                         tr = '***'
-                    elif pm_value < p2:
+                    elif p_value_t_test < p2:
                         tr = '**'
-                    elif pm_value < p1:
+                    elif p_value_t_test < p1:
                         tr = '*'
                     else:
                         tr = 'no significant difference'
 
-                    if pw_value == 'NaN':
+                    if p_value_wilcoxon == 'NaN':
                         wr = 'test not applicable'
-                    elif pw_value < p3:
+                    elif p_value_wilcoxon < p3:
                         wr = '***'
-                    elif pw_value < p2:
+                    elif p_value_wilcoxon < p2:
                         wr = '**'
-                    elif pw_value < p1:
+                    elif p_value_wilcoxon < p1:
                         wr = '*'
                     else:
                         wr = 'no significant difference'
 
                     significance_frames[name].loc[len(significance_frames[name])] = pd.Series([
                         f'1-{j + 1}', f"{j * bin_size + 1}-{(j + 1) * bin_size}",
-                        f"{len(tempFrame2)} {cell_count[j] - len(tempFrame2)} were dropped due to NaN entries",
-                        mstat, pm_value, tr,
-                        wilstat, pw_value, wr
+                        f"{len(temp_frame2)} {cell_count[j] - len(temp_frame2)} were dropped due to NaN entries",
+                        stat_t_test, p_value_t_test, tr,
+                        statistics_wilcoxon, p_value_wilcoxon, wr
                     ]).values
 
     # Return both result sets if ligand was used, else only normality results
@@ -579,8 +581,10 @@ def test_by_time(frames, bin_size, ligand, alpha, p1, p2, p3):
     :return: Dictionary of normality test results, and optionally significance test results
     """
     normality_frames = {}  # store results of normality tests
-    if ligand:
-        significance_frames = {}  # store significance test results if enabled
+    significance_frames = {}  # stores results of significance tests if enabled
+    if not ligand:
+        significance_frames = None
+    compare_frame = pd.DataFrame()
 
     # Determine the maximum time across all frames
     max_times = []
@@ -595,46 +599,46 @@ def test_by_time(frames, bin_size, ligand, alpha, p1, p2, p3):
 
 
     for i in range(1, bin_number):
-        tempFrame = pd.DataFrame()
+        temp_frame = pd.DataFrame()
 
         # Collect all rows that fall into the current time bin
         for frame in frames:
-            rowindex = 0
-            while frame.iloc[rowindex, 1] < i * bin_size:
-                if frame.iloc[rowindex, 1] >= (i - 1) * bin_size:
-                    tempFrame = tempFrame.append(frame.iloc[rowindex, :])
-                rowindex += 1
-                if rowindex == len(frame):
+            row_index = 0
+            while frame.iloc[row_index, 1] < i * bin_size:
+                if frame.iloc[row_index, 1] >= (i - 1) * bin_size:
+                    temp_frame = temp_frame.append(frame.iloc[row_index, :])
+                row_index += 1
+                if row_index == len(frame):
                     break
 
         # Skip bins with insufficient data
-        if len(tempFrame) < 3:
-            for name in tempFrame.columns[2:]:
+        if len(temp_frame) < 3:
+            for name in temp_frame.columns[2:]:
                 normality_frames[name].loc[len(normality_frames[name])] = pd.Series(
-                    [i + 1, f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}", 'NaN', 'NaN',
+                    [i + 1, f"{min(temp_frame['Time'])}-{max(temp_frame['Time'])}", 'NaN', 'NaN',
                      'Dataset too small', 'NaN', 'NaN', 'Dataset too small']).values
                 if ligand:
                     significance_frames[name].loc[len(significance_frames[name])] = pd.Series(
-                        [f'1-{i}', f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}", 'NaN', 'NaN',
+                        [f'1-{i}', f"{min(temp_frame['Time'])}-{max(temp_frame['Time'])}", 'NaN', 'NaN',
                          'Dataset too small', 'NaN', 'NaN', 'Dataset too small']).values
             continue
 
-        for name in tempFrame.columns[2:]:  # analyze each measurement column
+        for name in temp_frame.columns[2:]:  # analyze each measurement column
             if name not in normality_frames.keys():
-                compare_frame = tempFrame  # store the first bin for comparison
+                compare_frame = temp_frame  # store the first bin for comparison
                 norm_frame = pd.DataFrame(columns=[
                     'BinNumber', 'Timerange', 'Shapiro statistic', 'Shapiro p', 'Shapiro result',
                     'Kolmogorov-Smirnov statistic', 'Kolmogorov-Smirnov p', 'Kolmogorov-Smirnov result'])
                 normality_frames[name] = norm_frame
 
             # Run normality tests
-            shapstat, ps_value, kolstat, pk_value = normality_tests(tempFrame.iloc[:, 2:], name)
-            sr = 'not norm' if ps_value < alpha else 'norm'
-            kr = 'not norm' if pk_value < alpha else 'norm'
+            stats_shapiro, p_value_shapiro, statistics_kolmogorov, p_value_kolmogorov = normality_tests(temp_frame.iloc[:, 2:], name)
+            sr = 'not norm' if p_value_shapiro < alpha else 'norm'
+            kr = 'not norm' if p_value_kolmogorov < alpha else 'norm'
 
             normality_frames[name].loc[len(normality_frames[name])] = pd.Series([
-                i + 1, f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}", shapstat, ps_value, sr,
-                kolstat, pk_value, kr]).values
+                i + 1, f"{min(temp_frame['Time'])}-{max(temp_frame['Time'])}", stats_shapiro, p_value_shapiro, sr,
+                statistics_kolmogorov, p_value_kolmogorov, kr]).values
 
             # Run significance tests against first bin if enabled
             if ligand:
@@ -645,35 +649,35 @@ def test_by_time(frames, bin_size, ligand, alpha, p1, p2, p3):
                         'Wilcoxon-signed-rank statistic', 'Wilcoxon p', 'Wilcoxon result'])
                     significance_frames[name] = sign_frame
                 else:
-                    tstat, pt_value, wilstat, pw_value = significance_tests(
-                        tempFrame.iloc[:, 2:], compare_frame, name)
+                    statistics_t_test, p_value_t_test, statistics_wilcoxon, p_value_wilcoxon = significance_tests(
+                        temp_frame.iloc[:, 2:], compare_frame, name)
 
                     # Determine significance annotations
-                    if pt_value == 'NaN':
+                    if p_value_t_test == 'NaN':
                         tr = 'test not applicable'
-                    elif pt_value < p3:
+                    elif p_value_t_test < p3:
                         tr = '***'
-                    elif pt_value < p2:
+                    elif p_value_t_test < p2:
                         tr = '**'
-                    elif pt_value < p1:
+                    elif p_value_t_test < p1:
                         tr = '*'
                     else:
                         tr = 'no significant difference'
 
-                    if pw_value == 'NaN':
+                    if p_value_wilcoxon == 'NaN':
                         wr = 'test not applicable'
-                    elif pw_value < p3:
+                    elif p_value_wilcoxon < p3:
                         wr = '***'
-                    elif pw_value < p2:
+                    elif p_value_wilcoxon < p2:
                         wr = '**'
-                    elif pw_value < p1:
+                    elif p_value_wilcoxon < p1:
                         wr = '*'
                     else:
                         wr = 'no significant difference'
 
                     significance_frames[name].loc[len(significance_frames[name])] = pd.Series([
-                        f'1-{i}', f"{min(tempFrame['Time'])}-{max(tempFrame['Time'])}",
-                        tstat, pt_value, tr, wilstat, pw_value, wr]).values
+                        f'1-{i}', f"{min(temp_frame['Time'])}-{max(temp_frame['Time'])}",
+                        statistics_t_test, p_value_t_test, tr, statistics_wilcoxon, p_value_wilcoxon, wr]).values
 
     # Return both result sets if ligand was used, else only normality results
     return (normality_frames, significance_frames) if ligand else normality_frames
@@ -687,46 +691,51 @@ def normality_tests(dataframe, attribute):
     :param attribute: Column name of the variable to test
     :return: Statistics and p-values from Shapiro and Kolmogorov-Smirnov tests
     """
-    shapstat, ps_value = scy.shapiro(dataframe[attribute])
-    kolstat, pk_value = scy.kstest(dataframe[attribute], 'norm', args=(dataframe[attribute].mean(), dataframe[attribute].std()))  # this was not the right test! test if it works now! TODO
-    return shapstat, ps_value, kolstat, pk_value
+    statistics_shapiro, p_value_shapiro = scy.shapiro(dataframe[attribute])
+    statistics_kolmogorov, p_value_kolmogorov = scy.kstest(dataframe[attribute], 'norm', args=(dataframe[attribute].mean(), dataframe[attribute].std()))  # this was not the right test! test if it works now! TODO
+    return statistics_shapiro, p_value_shapiro, statistics_kolmogorov, p_value_kolmogorov
 
 
-def significance_tests(frame1, frame2, attribute):
+def significance_tests(reference_frame, data_frame, attribute_to_compare):
     """
-    Compares two distributions using paired tests.
+    Compares two distributions using the appropriate paired test (t-test or Wilcoxon),
+    depending on whether data is normally distributed.
 
-    :param frame1: Reference distribution
-    :param frame2: Comparison distribution
-    :param attribute: Column to compare
+    :param reference_frame: Reference distribution (pandas DataFrame)
+    :param data_frame:  Comparison distribution (pandas DataFrame)
+    :param attribute_to_compare: Column name to compare, e.g. D_confined (str)
     :return: Test statistics and p-values for paired t-test and Wilcoxon test
     """
-    if len(frame1) == len(frame2):
+    if len(reference_frame) == len(data_frame):
         try:
-            mstat, pm_value = scy.ttest_rel(frame1[attribute], frame2[attribute])  # paired t-test
+            # paired t-test
+            statistics_t_test, p_value_t_test = scy.ttest_rel(reference_frame[attribute_to_compare], data_frame[attribute_to_compare])
         except ValueError:
-            mstat, pm_value = 'not applicable to data', 'NaN'
+            statistics_t_test, p_value_t_test = 'not applicable to data', 'NaN'
         try:
-            wilstat, pw_value = scy.wilcoxon(frame1[attribute], frame2[attribute])  # Wilcoxon signed-rank
+            # wilcoxon signed-rank
+            statistics_wilcoxon, p_value_wilcoxon = scy.wilcoxon(reference_frame[attribute_to_compare], data_frame[attribute_to_compare])
         except ValueError:
-            wilstat, pw_value = 'not applicable to data', 'NaN'
+            statistics_wilcoxon, p_value_wilcoxon = 'not applicable to data', 'NaN'
     else:
         # For mismatched sample sizes, return explanation and NaNs
-        mstat = wilstat = f'uneven sample size: {len(frame1)} vs {len(frame2)}'
-        pm_value = pw_value = 'NaN'
-    return mstat, pm_value, wilstat, pw_value
+        statistics_t_test = statistics_wilcoxon = f'uneven sample size: {len(reference_frame)} vs {len(data_frame)}'
+        p_value_t_test = p_value_wilcoxon = 'NaN'
+    return statistics_t_test, p_value_t_test, statistics_wilcoxon, p_value_wilcoxon
 
 
-def compile_columns(frames, columns, renameColumns):
+def compile_columns(frames, columns, rename_cols):
     """
     Merges columns with matching names from multiple dataframes.
 
     :param frames: List of input dataframes
     :param columns: List of substrings to match in column names
-    :param renameColumns: Whether to prefix columns with date to avoid duplication
+    :param rename_cols: Whether to prefix columns with date to avoid duplication
     :return: A combined DataFrame of selected columns
     """
     compiled_frame = pd.DataFrame()
+    comp_df = pd.DataFrame()
+
     for df in frames:
         # Extract identifier from filename (e.g., date and well position)
         date = df.iloc[0, 0].split('_')[0] + '_' + df.iloc[0, 0].split('_')[-3] + ': '
@@ -735,11 +744,11 @@ def compile_columns(frames, columns, renameColumns):
         comp_df = df[common_columns]
 
         # Optionally rename columns to avoid duplicates
-        if renameColumns:
+        if rename_cols:
             comp_df = comp_df.rename(columns={col: date + col for col in comp_df.columns})
         compiled_frame = pd.concat([compiled_frame, comp_df], axis=1)
 
-    return comp_df if not renameColumns else compiled_frame
+    return comp_df if not rename_cols else compiled_frame
 
 
 def generate_shortname(value):
@@ -759,7 +768,7 @@ def generate_shortname(value):
         return value
 
 
-def cut_cellnames(name):
+def cut_cell_names(name):
     """
     Extracts cell number from full identifier.
 
@@ -773,29 +782,29 @@ def output_folder(file, folder, datasets):
     """
     Writes datasets to a group in an HDF5 file.
 
-    :param file: Open h5py file handle
+    :param file: Open h5 py file handle
     :param folder: Name of group (folder) to write into
     :param datasets: List of [name, DataFrame] pairs to write
     """
     fold = file.create_group(folder)
-    for i, set in enumerate(datasets):
+    for i, dataset in enumerate(datasets):
         if folder != 'metadata':
             # Add units to column names
-            set[1].columns = rename_columns(set[1].columns.tolist())
+            dataset[1].columns = rename_columns(dataset[1].columns.tolist())
         # Sanitize each cell value for writing
-        for col in set[1].columns:
+        for col in dataset[1].columns:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                set[1][col] = set[1][col].apply(generate_shortname)
+                dataset[1][col] = dataset[1][col].apply(generate_shortname)
 
         # Define variable-length string dtype for each column
-        compound_dtype = np.dtype([(a, h5py.special_dtype(vlen=str)) for a in set[1].columns])
-        tab = fold.create_dataset(set[0], (len(set[1]),), dtype=compound_dtype)
+        compound_dtype = np.dtype([(a, h5py.special_dtype(vlen=str)) for a in dataset[1].columns])
+        tab = fold.create_dataset(dataset[0], (len(dataset[1]),), dtype=compound_dtype)
 
         # Write each column's data as a string array
-        for i in range(set[1].shape[1]):
-            data_array = np.array(set[1].iloc[:, i], dtype=compound_dtype)
-            tab[set[1].columns[i]] = data_array
+        for col_index in range(dataset[1].shape[1]):
+            data_array = np.array(dataset[1].iloc[:, col_index], dtype=compound_dtype)
+            tab[dataset[1].columns[col_index]] = data_array
 
 
 def rename_columns(old_col_names):
@@ -824,200 +833,241 @@ def rename_columns(old_col_names):
 # stopped annotating here TODO
 
 
-def load_cs(sorted, coverslip, file, tiffiles, coverslip_data):
+def load_cs(sorted_list, coverslip, file, tif_files, coverslip_data):
     """
-    loads the data of a coverslip into the coverslip_data variable
-    :param sorted: a correctly sorted list of cell names
-    :param coverslip: a correctly sorted list of cell names in a coverslip
+    Loads all cells of a coverslip into the variable coverslip_data.
+
+    :param sorted_list: a correctly sorted list of all cell names
+    :param coverslip: a list of cell names belonging to one coverslip
     :param file: list of h5 files
-    :param tiffiles: list of the tif files for the timestamps
-    :param coverslip_data: list of already loaded data to add to
-    :return:coverslip_data with the data added to it
+    :param tif_files: list of tif files (used for timestamp retrieval)
+    :param coverslip_data: list of dataframes to which the new data will be appended
+    :return: updated coverslip_data
     """
+
+    cs_start_time = 0  # initialize start time
+
     for cell in coverslip:
         hdf5global = h5py.File(parent_string(cell, file, "metadata"), "r")
+
+        # Get timestamp of first cell in coverslip
         try:
-            float(coverslip_data[sorted.index(coverslip)].iloc[0, 1])
+            float(coverslip_data[sorted_list.index(coverslip)].iloc[0, 1])
         except IndexError:
-            csStartTime = os.path.getmtime(parent_string(cell, tiffiles, "metadata"))
-        statglobal = hdf5global["statistics"]["statistics_3"][0, 0]
-        P_immobile = float(statglobal[0])
-        P_confined = float(statglobal[1])
-        P_free = float(statglobal[2])
-        D_immobile = float(statglobal[5])
-        if math.isnan(D_immobile):
-            DG_immobile = 0
-        else:
-            DG_immobile = D_immobile
-        D_confined = float(statglobal[6])
-        if math.isnan(D_confined):
-            DG_confined = 0
-        else:
-            DG_confined = D_confined
-        D_free = float(statglobal[7])
-        if math.isnan(D_free):
-            DG_free = 0
-        else:
-            DG_free = D_free
-        D_global = (DG_immobile * P_immobile + DG_confined * P_confined + DG_free * P_free) * 0.01
-        L_immobile = float(statglobal[11])
-        L_confined = float(statglobal[12])
-        L_free = float(statglobal[13])
-        if math.isnan(L_immobile):
-            LG_immobile = 0
-        else:
-            LG_immobile = L_immobile
-        if math.isnan(D_confined):
-            LG_confined = 0
-        else:
-            LG_confined = L_confined
-        if math.isnan(D_free):
-            LG_free = 0
-        else:
-            LG_free = L_free
-        L_global = (LG_immobile * P_immobile + LG_confined * P_confined + LG_free * P_free) * 0.01
-        N_confined = 0
-        N_free = 0
-        N_immobile = 0
-        confinementRadiiSum = 0
-        DE_immobile = float(statglobal[8])
-        DE_confined = float(statglobal[9])
-        DE_free = float(statglobal[10])
-        LE_immobile = float(statglobal[14])
-        LE_confined = float(statglobal[15])
-        LE_free = float(statglobal[16])
-        for i, j in enumerate(hdf5global["rossier"]["rossierStatistics"][()]):
+            cs_start_time = os.path.getmtime(parent_string(cell, tif_files, "metadata"))
+
+        stats_global = hdf5global["statistics"]["statistics_3"][0, 0]
+
+        # Probabilities of motion types
+        p_immobile = float(stats_global[0])
+        p_confined = float(stats_global[1])
+        p_free = float(stats_global[2])
+
+        # Diffusion coefficients (individual and global)
+        dg_immobile = 0 if math.isnan(stats_global[5]) else float(stats_global[5])
+        dg_confined = 0 if math.isnan(stats_global[6]) else float(stats_global[6])
+        dg_free = 0 if math.isnan(stats_global[7]) else float(stats_global[7])
+        d_global = (dg_immobile * p_immobile + dg_confined * p_confined + dg_free * p_free) * 0.01
+
+        # Segment lengths (individual and global)
+        lg_immobile = 0 if math.isnan(stats_global[11]) else float(stats_global[11])
+        lg_confined = 0 if math.isnan(stats_global[12]) else float(stats_global[12])
+        lg_free = 0 if math.isnan(stats_global[13]) else float(stats_global[13])
+        l_global = (lg_immobile * p_immobile + lg_confined * p_confined + lg_free * p_free) * 0.01
+
+        # Segment counts and confinement radius
+        n_confined = 0
+        n_free = 0
+        n_immobile = 0
+        confinement_radii_sum = 0
+
+        de_immobile = float(stats_global[8])
+        de_confined = float(stats_global[9])
+        de_free = float(stats_global[10])
+        le_immobile = float(stats_global[14])
+        le_confined = float(stats_global[15])
+        le_free = float(stats_global[16])
+
+        for j in hdf5global["rossier"]["rossierStatistics"][()]:
             if j[2] == 1:
-                N_confined += 1
-                confinementRadiiSum += j[7]
+                n_confined += 1
+                confinement_radii_sum += j[7]
             elif j[3] == 1:
-                N_free += 1
-            elif j[1] == 1:
-                N_immobile += 1
-            elif j[4] == 1:
-                N_immobile += 1
-        if N_confined > 0:
-            confinementRadii = confinementRadiiSum / N_confined
-        else:
-            confinementRadii = 0
-        N_global = N_immobile + N_confined + N_free
-        coverslip_data[sorted.index(coverslip)].loc[
-            len(coverslip_data[sorted.index(coverslip)])] = cell, os.path.getmtime(parent_string(cell,
-                                                                                                 tiffiles,
-                                                                                                 'metadata')) - csStartTime, P_immobile, P_confined, P_free, D_global, D_immobile, D_confined, D_free, L_global, L_immobile, L_confined, L_free, N_global, N_immobile, N_confined, N_free, confinementRadii, DE_immobile, DE_confined, DE_free, LE_immobile, LE_confined, LE_free
-    if coverslip_data[sorted.index(coverslip)].empty:
-        raise IncorrectConfigException('Coverslide number ' + str(
-            sorted.index(coverslip) + 1) + ' created an empty dataframe. Please check your data')
+                n_free += 1
+            elif j[1] == 1 or j[4] == 1:
+                n_immobile += 1
+
+        confinement_radii = confinement_radii_sum / n_confined if n_confined > 0 else 0
+        n_global = n_immobile + n_confined + n_free
+
+        # Append data row
+        coverslip_data[sorted_list.index(coverslip)].loc[
+            len(coverslip_data[sorted_list.index(coverslip)])
+        ] = (
+            cell,
+            os.path.getmtime(parent_string(cell, tif_files, 'metadata')) - cs_start_time,
+            p_immobile, p_confined, p_free,
+            d_global, dg_immobile, dg_confined, dg_free,
+            l_global, lg_immobile, lg_confined, lg_free,
+            n_global, n_immobile, n_confined, n_free,
+            confinement_radii,
+            de_immobile, de_confined, de_free,
+            le_immobile, le_confined, le_free
+        )
+
+    # Raise error if DataFrame for this coverslip is empty
+    if coverslip_data[sorted_list.index(coverslip)].empty:
+        raise IncorrectConfigException(
+             f'Coverslip number {sorted_list.index(coverslip) + 1} created an empty dataframe. Please check your data.'
+        )
+
     return coverslip_data
 
 
-def fourset_output(save_dir, outputfile, dataset, coverslip_data, use_timestamps, plotcolor, t_lig, ligand_name,
-                   error_type, binned):
+def four_set_output(save_dir, outputfile, dataset, coverslip_data, use_timestamps, plot_color, t_lig,
+                    ligand_name, error_type, binned):
     """
-    :param save_dir: where to save
-    :param outputfile: h5 file to output into
-    :param dataset: the set inside the h5 file to output into
-    :param coverslip_data: the data to output
-    :param use_timestamps: whether timestamps were used
-    :param plotcolor: what color to plot
-    :param t_lig: when the ligand was added
-    :param ligand_name: the name of the ligand
-    :param error_type: whether to use SD or SEM
-    :param binned: whether you're outputting binned data
-    outputs data that has 4 diffusion types ('global', 'immobile', 'confined', 'free')
+    Outputs analysis data for four diffusion types: 'global', 'immobile', 'confined', 'free'.
+
+    :param save_dir: directory where plots and data will be saved
+    :param outputfile: HDF5 file to write the output into
+    :param dataset: dataset inside the HDF5 file
+    :param coverslip_data: list of pandas DataFrames with coverslip data
+    :param use_timestamps: whether time-based plotting is used
+    :param plot_color: color used for plots
+    :param t_lig: ligand addition time (in seconds or relative time)
+    :param ligand_name: name of the ligand
+    :param error_type: error display type ('SD' or 'SEM')
+    :param binned: whether to output data as binned time response
     """
-    # determins attribute name
+
     for folder in ['D', 'L', 'N']:
+        # Determine attribute name
         if folder == 'D':
             name = 'diffusion_coefficients'
-        if folder == 'L':
+        elif folder == 'L':
             name = 'segment_lengths'
-        if folder == 'N':
+        elif folder == 'N':
             name = 'number_of_segments'
+        else:
+            raise ValueError(f"Unknown folder name: {folder}")
+
         data = []
+
+        # Create output directories for plots
         if binned:
-            os.mkdir(save_dir + '\\TRplots\\' + name)
-            os.mkdir(save_dir + '\\TRplots\\' + name + '\\pngs')
-            os.mkdir(save_dir + '\\TRplots\\' + name + '\\svgs')
-            os.mkdir(save_dir + '\\TRplots\\' + name + '\\pdfs')
-        # writes output by signal type
+            for fmt in ['pngs', 'svgs', 'pdfs']:
+                os.makedirs(os.path.join(save_dir, 'time_resolved_plots', name, fmt))
+
+        # Loop over all signal types
         for signal_type in ['global', 'immobile', 'confined', 'free']:
             if binned:
-                data.append(compile_columns(dataset, ["Cell Name", "Time", folder + "_" + signal_type,
-                                                      folder + '_' + signal_type + '_SD',
-                                                      folder + '_' + signal_type + '_SEM'], True))
+                data.append(compile_columns(
+                    dataset,
+                    ["Cell Name", "Time", f"{folder}_{signal_type}",
+                     f"{folder}_{signal_type}_SD", f"{folder}_{signal_type}_SEM"],
+                    True
+                ))
+
+                # Generate plots depending on timestamp usage
                 if use_timestamps:
-                    plot = plot_by_time(coverslip_data, folder + '_' + signal_type, t_lig, ligand_name, dataset,
-                                        error_type, plotcolor)
+                    plot = plot_by_time(coverslip_data, f"{folder}_{signal_type}", t_lig,
+                                        ligand_name, dataset, error_type, plot_color)
+
                 else:
-                    plot = plot_by_cells(coverslip_data, folder + '_' + signal_type, t_lig, ligand_name, dataset,
-                                         error_type,
-                                         plotcolor)
-                plot.savefig(save_dir + '\\TRplots\\' + name + '\\pngs\\' + signal_type + '.png', dpi=300)
-                plot.savefig(save_dir + '\\TRplots\\' + name + '\\svgs\\' + signal_type + '.svg', dpi=300)
-                plot.savefig(save_dir + '\\TRplots\\' + name + '\\pdfs\\' + signal_type + '.pdf', dpi=300)
+                    plot = plot_by_cells(coverslip_data, f"{folder}_{signal_type}", t_lig,
+                                         ligand_name, dataset, error_type, plot_color)
+
+                for fmt in ['png', 'svg', 'pdf']:
+                    plot.savefig(os.path.join(save_dir, 'time_resolved_plots', name, f"{fmt}s", f"{signal_type}.{fmt}"), dpi=300)
 
             else:
-                data.append(compile_columns(dataset, ["Cell Name", "Time", folder + "_" + signal_type,
-                                                      folder + 'E_' + signal_type], True))
-        output_folder(outputfile, name,
-                      [['global', data[0]], ['immobile', data[1]], ['confined', data[2]], ['free', data[3]]])
+                data.append(compile_columns(
+                    dataset,
+                    ["Cell Name", "Time", f"{folder}_{signal_type}", f"{folder}E_{signal_type}"],
+                    True
+                ))
+
+        # Write data into the HDF5 file
+        output_folder(outputfile, name, [
+            ['global', data[0]],
+            ['immobile', data[1]],
+            ['confined', data[2]],
+            ['free', data[3]]
+        ])
 
 
 def stack_data(dataframes):
     """
+    Stacks multiple DataFrames (from different coverslips) vertically into a single DataFrame.
+
     :param dataframes: list of dataframes
-    :return: a dataframe consisting of the frames stacked atop each other
+    :return: a single-element list containing one DataFrame with all input frames stacked
     """
+    # Define the expected column names in the correct order
     columns = ["Cell Name", "Time", "P_immobile", "P_confined", "P_free", "D_global", "D_immobile", "D_confined",
                "D_free", "L_global", "L_immobile", "L_confined", "L_free", "N_global", "N_immobile", "N_confined",
                "N_free", 'confinement_radius', 'DE_immobile', 'DE_confined', 'DE_free', 'LE_immobile', 'LE_confined',
                'LE_free']
+
+    # Attempt to rename columns of each DataFrame based on the defined header
     for df in dataframes:
         new_col = {}
         for i, col in enumerate(df.columns):
             new_col[col] = columns[i]
-        df.rename(columns=new_col)
+        df.rename(columns=new_col, inplace=True)
+
+    # Concatenate all DataFrames vertically and return inside a list
     return [pd.concat(dataframes, axis=0)]
 
 
 def main(config_path):
     start_time = time.time()
-    csPaths = []
-    paths = []
-    files = []
-    use_timestamps = False
+    cs_paths = []                # List of directories containing coverslip-specific data
+    paths = []                  # List of directories containing global data
+    files = []                  # List of .h5 files (will be filled later)
+    use_timestamps = False      # Whether to use timestamps for time alignment
+    tif_files = []
+
+    # Load configuration file
     config = configparser.ConfigParser()
-    config.sections()
+    config.sections()   # TODO: not necessary?
     config.read(config_path)
 
+    # Check if timestamps should be used
     try:
         if config["USE_TIMESTAMPS"]["use_timestamps"].lower() == "true":
             use_timestamps = True
     except KeyError:
         raise IncorrectConfigException("Section USE_TIMESTAMPS missing in config.")
+
+    # Load binning settings (how to group data by time or cell count)
     try:
         bin_size_cells = int(config["BIN_SIZE"]["cells"])
         bin_size_time = float(config["BIN_SIZE"]["minutes"]) * 60 + float(config["BIN_SIZE"]["seconds"])
     except KeyError:
         raise IncorrectConfigException("Section BIN_SIZE missing in config.")
+
+    # Load all coverslip directories
     try:
         if len([key for key in config["CS_DIRS"]]):
             for key in config["CS_DIRS"]:
-                csPaths.append(config["CS_DIRS"][key])
+                cs_paths.append(config["CS_DIRS"][key])
         else:
             raise IncorrectConfigException("No coverslip directory defined in config.")
     except KeyError:
         raise IncorrectConfigException("Section CS_DIRS missing in config.")
 
-    tiffiles = []
-    for dir in csPaths:
-        tiffiles += get_matching_files(dir + "\\cells\\tifs", "cell", ["_dl", 'metadata'])
+    # Collect TIFF metadata files (needed for timestamps)
+    for directory in cs_paths:
+        tif_files += get_matching_files(directory + "\\cells\\tifs", "cell", ["_dl", 'metadata'])
 
-    csNames = []
-    for cs in csPaths:
-        csNames.append('_'.join(os.listdir(cs + "\\cells\\tifs")[0].split("\\")[-1].split('_')[:-2]))
+    # Extract base names for each coverslip
+    cs_names = []
+    for cs in cs_paths:
+        cs_names.append('_'.join(os.listdir(cs + "\\cells\\tifs")[0].split("\\")[-1].split('_')[:-2]))
 
+    # Load global .h5 file paths
     try:
         if len([key for key in config["GLOBAL_DIR"]]):
             for key in config["GLOBAL_DIR"]:
@@ -1027,16 +1077,19 @@ def main(config_path):
     except KeyError:
         raise IncorrectConfigException("Section GLOBAL_DIR missing in config.")
 
+    # Where to save the output plots and files
     try:
-        save_dir = config["SAVE_DIR"]["svdir"]
+        save_dir = config["SAVE_DIR"]["save_dir"]
     except KeyError:
-        raise IncorrectConfigException("Parameter svdir missing in config.")
+        raise IncorrectConfigException("Parameter save_dir missing in config.")
 
+    # Load statistical threshold for significance (used for normalization)
     try:
         alpha = float(config["STAT_SETTINGS"]["alpha_norm"])
     except KeyError:
         raise IncorrectConfigException("Parameter alpha_norm missing in config.")
 
+    # Determine whether statistical tests should be run
     try:
         if config["STAT_SETTINGS"]["run_stats"].lower() == "true":
             run_stats = True
@@ -1045,6 +1098,7 @@ def main(config_path):
     except KeyError:
         raise IncorrectConfigException("Section USE_TIMESTAMPS missing in config.")
 
+    # Load significance levels for up to three comparison groups
     try:
         p1 = float(config["STAT_SETTINGS"]["alpha_sign_1"])
     except KeyError:
@@ -1058,228 +1112,242 @@ def main(config_path):
     except KeyError:
         raise IncorrectConfigException("Parameter alpha_sign_1 missing in config.")
 
+    # Get dot color for plots; fallback to orange if empty
     try:
-        plotcolor = config["PLOT_SETTINGS"]["dot_color"]
-        if plotcolor == '':
-            plotcolor = '#FFA500'
+        plot_color = config["PLOT_SETTINGS"]["dot_color"]
+        if plot_color == '':
+            plot_color = '#FFA500'
     except KeyError:
         raise IncorrectConfigException("Parameter dot_color missing in config.")
 
+    # Determine ligand addition time index and whether to use it
     try:
         t_lig = config["PLOT_SETTINGS"]["ligand_index"]
         if t_lig == '':
             ligand = False
         else:
             ligand = True
-            # adds identificatior to the end of the ligand index
+            # Add identifier for timestamped ('s') or cell-based ('c') data
             if use_timestamps:
                 t_lig += 's'
             else:
                 t_lig += 'c'
     except KeyError:
         raise IncorrectConfigException("Parameter t_lig missing in config.")
+
+    # Load ligand name for use in plot labeling
     try:
         ligand_name = config["PLOT_SETTINGS"]["ligand_name"]
     except KeyError:
         raise IncorrectConfigException("Parameter ligand_name missing in config.")
+
+    # Load error type (e.g., SD or SEM)
     try:
         error_type = config["PLOT_SETTINGS"]["error_type"]
     except KeyError:
         raise IncorrectConfigException("Parameter error_type missing in config.")
 
-    # writes the location of the h5 files into columns
+    # Check each path in the config; collect matching .h5 files unless entry is a float (indicates an error)
     for path in paths:
         if type(path) is float:
             raise IncorrectConfigException("mismatched number of files")
         else:
             files = get_matching_files(path, ".h5", ["statistics.h5"])
-    # sets up output folder
+
+    # Prepare the output directory structure
     try:
         os.mkdir(save_dir)
     except FileExistsError:
         pass
+
+    # (Re)create subfolder for time-resolved analysis output
     try:
         os.mkdir(save_dir + '\\timeResolvedAnalysis')
     except FileExistsError:
         shutil.rmtree(save_dir + '\\timeResolvedAnalysis')
         os.mkdir(save_dir + '\\timeResolvedAnalysis')
+
     save_dir += '\\timeResolvedAnalysis'
 
-    # writes the .tif files into a dictionary with the key being their coverslip name
-    input_files = {c: [] for c in csNames}
+    # Match each .h5 file to its corresponding .tif file by coverslip name
+    input_files = {c: [] for c in cs_names}
     for h5 in files:
         filename = h5.split("\\")[-1][:-2]
-        tif = parent_string(filename, tiffiles,
-                            "metadata")  # goes through the tif files and looks for the one with the right name
-        coverslipname = '_'.join(tif.split("\\")[-1].split('_')[:-2])
-        input_files[coverslipname].append(filename)
-    # sorts the files in correct order, taking multi digit numbers into account e.g. 10 comes after 2
-    sorted = []
+        tif = parent_string(filename, tif_files,
+                            "metadata")  # find matching .tif file based on metadata
+        coverslip_name = '_'.join(tif.split("\\")[-1].split('_')[:-2]) # extract coverslip identifier
+        input_files[coverslip_name].append(filename)
+
+    # Sort files naturally (e.g., cell_2 comes before cell_10)
+    sorted_list = []
     for cs in input_files.keys():
-        sorted.append(sort_cells(input_files[cs]))
-    # prepares dataframes for each coverslip
+        sorted_list.append(sort_cells(input_files[cs]))
+
+    # Prepare empty dataframes for each coverslip to store time-resolved statistics
     coverslip_data = [pd.DataFrame(
         columns=["Cell Name", "Time", "P_immobile", "P_confined", "P_free", "D_global", "D_immobile", "D_confined",
                  "D_free", "L_global", "L_immobile", "L_confined", "L_free", "N_global", "N_immobile", "N_confined",
                  "N_free", "confinement_radius", "DE_immobile", "DE_confined", "DE_free", "LE_immobile", "LE_confined",
-                 "LE_free"]) for cs in csNames]
+                 "LE_free"]) for cs in cs_names]
 
-    # writes all data into dataframes and creates their own binned dataframe, then appends them to the binned_data list
+    # Process and bin data for each coverslip; optionally use time-based or cell-based binning
     binned_data = []
-    for coverslip in sorted:  # coverslip is a sorted list of all cells in a coverslip
-        coverslip_data = load_cs(sorted, coverslip, files, tiffiles, coverslip_data)
+    for coverslip in sorted_list:  # coverslip is a sorted list of all cells in a coverslip
+        coverslip_data = load_cs(sorted_list, coverslip, files, tif_files, coverslip_data)
         if use_timestamps:
-            binned_mean = bin_data_time(coverslip_data[sorted.index(coverslip)], bin_size_time)
+            binned_mean = bin_data_time(coverslip_data[sorted_list.index(coverslip)], bin_size_time)
         else:
-            binned_mean = bin_data_cells(coverslip_data[sorted.index(coverslip)], bin_size_cells)
+            binned_mean = bin_data_cells(coverslip_data[sorted_list.index(coverslip)], bin_size_cells)
         binned_data += [binned_mean]
+
+    # Stack all coverslip data into one dataframe
     stacked_data = stack_data(coverslip_data)
 
+    # Find the index of the longest binned dataset to use for global averaging
     largest_bindex = 0
-    for i, bin in enumerate(binned_data):
-        if len(bin) > len(binned_data[largest_bindex]):
+    for i, current_bin in enumerate(binned_data):
+        if len(current_bin) > len(binned_data[largest_bindex]):
             largest_bindex = i
 
-    global_mean = pd.DataFrame(binned_data[largest_bindex].iloc[:, 0:2])
+    # Calculate global mean across all coverslips for each parameter
+    global_mean = pd.DataFrame(binned_data[largest_bindex].iloc[:, 0:2]) # base columns: Cell Name and Time
     for attribute in ["P_immobile", "P_confined", "P_free", "D_global", "D_immobile", "D_confined",
                       "D_free", "L_global", "L_immobile", "L_confined", "L_free", "N_global", "N_immobile",
                       "N_confined",
                       "N_free", "confinement_radius"]:
-        global_mean = pd.concat([global_mean, pd.DataFrame(calc_mean_over_cS(binned_data, attribute),
+        global_mean = pd.concat([global_mean, pd.DataFrame(calc_mean_over_cs(binned_data, attribute),
                                                            columns=[attribute, attribute + "_SD", attribute + "_SEM"])],
                                 axis=1)
+
+    # Clean up cell names to just the range identifier
     for i, row in enumerate(global_mean["Cell Name"]):
         global_mean.iloc[i, 0] = row.split("_")[-1]
-    global_mean.rename(columns={'Cell Names': 'cell range'})
+    global_mean.rename(columns={'Cell Names': 'cell range'}) # TODO: likely intended to rename "Cell Name"
 
-    # output
-    outputFile = h5py.File(save_dir + '\\stats.h5', 'w')
-    outputFile_bin = outputFile.create_group('bin')
-    outputFile_raw = outputFile.create_group('raw')
-    outputFile_stacked = outputFile.create_group('stacked')
-    # sheet with global means output
-    output_folder(outputFile, 'global means',
-                  [['global means', global_mean]])
+    # Create output file structure and save results
+    output_file = h5py.File(save_dir + '\\stats.h5', 'w')
+    output_file_bin = output_file.create_group('bin')
+    output_file_raw = output_file.create_group('raw')
+    output_file_stacked = output_file.create_group('stacked')
 
-    # raw data output
-    output_folder(outputFile_raw, 'fractions',
+    # Save global means
+    output_folder(output_file, 'global means', [['global means', global_mean]])
+
+    # Save raw fractions data
+    output_folder(output_file_raw, 'fractions',
                   [['immobile', compile_columns(coverslip_data, ["Cell Name", "Time", "P_immobile"], True)],
                    ['confined', compile_columns(coverslip_data, ["Cell Name", "Time", "P_confined"], True)],
                    ['free', compile_columns(coverslip_data, ["Cell Name", "Time", "P_free"], True)]])
 
-    # binned data output
-    # writes fractions and confinement_radii
-    output_folder(outputFile_bin, 'fractions',
+    # Save binned fractions data
+    output_folder(output_file_bin, 'fractions',
                   [['immobile', compile_columns(binned_data, ["Cell Name", "Time", "P_immobile"], True)],
                    ['confined', compile_columns(binned_data, ["Cell Name", "Time", "P_confined"], True)],
                    ['free', compile_columns(binned_data, ["Cell Name", "Time", "P_free"], True)]])
-    # stacked output
-    output_folder(outputFile_stacked, 'fractions',
+
+    # Save stacked fractions data
+    output_folder(output_file_stacked, 'fractions',
                   [['immobile', compile_columns(stacked_data, ["Cell Name", "Time", "P_immobile"], False)],
                    ['confined', compile_columns(stacked_data, ["Cell Name", "Time", "P_confined"], False)],
                    ['free', compile_columns(stacked_data, ["Cell Name", "Time", "P_free"], False)]])
 
+    # Prepare folder structure for saving plots
     name = 'fractions'
-    os.mkdir(save_dir + '\\TRplots')
-    os.mkdir(save_dir + '\\TRplots\\' + name)
-    os.mkdir(save_dir + '\\TRplots\\' + name + '\\pngs')
-    os.mkdir(save_dir + '\\TRplots\\' + name + '\\svgs')
-    os.mkdir(save_dir + '\\TRplots\\' + name + '\\pdfs')
+    os.mkdir(save_dir + '\\time_resolved_plots')
+    os.mkdir(save_dir + '\\time_resolved_plots\\' + name)
+    os.mkdir(save_dir + '\\time_resolved_plots\\' + name + '\\pngs')
+    os.mkdir(save_dir + '\\time_resolved_plots\\' + name + '\\svgs')
+    os.mkdir(save_dir + '\\time_resolved_plots\\' + name + '\\pdfs')
+
+    # Generate and save time-resolved plots (for each population type)
     for signal_type in ['immobile', 'confined', 'free']:
         if use_timestamps:
-            plot = plot_by_time(coverslip_data, 'P_' + signal_type, t_lig, ligand_name, binned_data, error_type,
-                                plotcolor)
+            plot = plot_by_time(coverslip_data, 'P_' + signal_type, t_lig, ligand_name, binned_data, error_type, plot_color)
         else:
-            plot = plot_by_cells(coverslip_data, 'P_' + signal_type, t_lig, ligand_name, binned_data, error_type,
-                                 plotcolor)
-        plot.savefig(save_dir + '\\TRplots\\' + name + '\\pngs\\' + signal_type + '.png', dpi=300)
-        plot.savefig(save_dir + '\\TRplots\\' + name + '\\svgs\\' + signal_type + '.svg', dpi=300)
-        plot.savefig(save_dir + '\\TRplots\\' + name + '\\pdfs\\' + signal_type + '.pdf', dpi=300)
+            plot = plot_by_cells(coverslip_data, 'P_' + signal_type, t_lig, ligand_name, binned_data, error_type, plot_color)
+        plot.savefig(save_dir + '\\time_resolved_plots\\' + name + '\\pngs\\' + signal_type + '.png', dpi=300)
+        plot.savefig(save_dir + '\\time_resolved_plots\\' + name + '\\svgs\\' + signal_type + '.svg', dpi=300)
+        plot.savefig(save_dir + '\\time_resolved_plots\\' + name + '\\pdfs\\' + signal_type + '.pdf', dpi=300)
 
-    output_folder(outputFile_raw, 'confinement_radii',
-                  [['confinement_radii',
-                    compile_columns(coverslip_data, ["Cell Name", "Time", 'confinement_radius'], True)]])
-    output_folder(outputFile_bin, 'confinement_radii',
-                  [['confinement_radii',
-                    compile_columns(binned_data, ["Cell Name", "Time", 'confinement_radius'], True)]])
-    output_folder(outputFile_stacked, 'confinement_radii',
-                  [['confinement_radii',
-                    compile_columns(stacked_data, ["Cell Name", "Time", 'confinement_radius'], False)]])
+    # Save raw, binned, and stacked confinement radius data
+    output_folder(output_file_raw, 'confinement_radii',
+                  [['confinement_radii', compile_columns(coverslip_data, ["Cell Name", "Time", 'confinement_radius'], True)]])
+    output_folder(output_file_bin, 'confinement_radii',
+                  [['confinement_radii', compile_columns(binned_data, ["Cell Name", "Time", 'confinement_radius'], True)]])
+    output_folder(output_file_stacked, 'confinement_radii',
+                  [['confinement_radii', compile_columns(stacked_data, ["Cell Name", "Time", 'confinement_radius'], False)]])
 
+    # Create folder and generate confinement radius plots
     name = 'confinement_radii'
-    os.mkdir(save_dir + '\\TRplots\\' + name)
+    os.mkdir(save_dir + '\\time_resolved_plots\\' + name)
     if use_timestamps:
-        plot = plot_by_time(coverslip_data, 'confinement_radius', t_lig, ligand_name, binned_data, error_type,
-                            plotcolor)
+        plot = plot_by_time(coverslip_data, 'confinement_radius', t_lig, ligand_name, binned_data, error_type, plot_color)
     else:
-        plot = plot_by_cells(coverslip_data, 'confinement_radius', t_lig, ligand_name, binned_data, error_type,
-                             plotcolor)
-    plot.savefig(save_dir + '\\TRplots\\' + name + '\\confinement_radii.png', dpi=300)
-    plot.savefig(save_dir + '\\TRplots\\' + name + '\\confinement_radii.svg', dpi=300)
-    plot.savefig(save_dir + '\\TRplots\\' + name + '\\confinement_radii.pdf', dpi=300)
+        plot = plot_by_cells(coverslip_data, 'confinement_radius', t_lig, ligand_name, binned_data, error_type, plot_color)
 
-    # writes the output files for diff coef, seg lengths, and number of segments
-    # raw
-    fourset_output(save_dir, outputFile_raw, coverslip_data, coverslip_data, use_timestamps, plotcolor, t_lig,
-                   ligand_name,
-                   error_type, False)
-    # binned
-    fourset_output(save_dir, outputFile_bin, binned_data, coverslip_data, use_timestamps, plotcolor, t_lig, ligand_name,
-                   error_type, True)
+    # Save plot in multiple formats
+    plot.savefig(save_dir + '\\time_resolved_plots\\' + name + '\\confinement_radii.png', dpi=300)
+    plot.savefig(save_dir + '\\time_resolved_plots\\' + name + '\\confinement_radii.svg', dpi=300)
+    plot.savefig(save_dir + '\\time_resolved_plots\\' + name + '\\confinement_radii.pdf', dpi=300)
 
-    # stacked
-    fourset_output(save_dir, outputFile_stacked, stacked_data, coverslip_data, use_timestamps, plotcolor, t_lig,
-                   ligand_name,
-                   error_type, False)
+    # Save outputs for diffusion coefficients, segment lengths, and number of segments
+    # raw, binned, and stacked
+    four_set_output(save_dir, output_file_raw, coverslip_data, coverslip_data, use_timestamps, plot_color, t_lig, ligand_name, error_type, False)
+    four_set_output(save_dir, output_file_bin, binned_data, coverslip_data, use_timestamps, plot_color, t_lig, ligand_name, error_type, True)
+    four_set_output(save_dir, output_file_stacked, stacked_data, coverslip_data, use_timestamps, plot_color, t_lig, ligand_name, error_type, False)
 
+    # Prepare metadata DataFrame with parameters used in the analysis
     metadata = pd.DataFrame(
-        columns=['use_timestamps', 'n_cells', 'Plot_Error_type', 'Plot_Ligand_time', 'stat_alpha', 'stat_p1',
-                 'stat_p2', 'stat_p3'])
+        columns=['use_timestamps', 'n_cells', 'Plot_Error_type', 'Plot_Ligand_time', 'stat_alpha', 'stat_p1', 'stat_p2', 'stat_p3'])
     metadata.loc[len(metadata)] = pd.Series(
-        [use_timestamps, str(int(bin_size_time / 60)) + 'm' + str(bin_size_time % 60) + 's', error_type, t_lig,
-         alpha, p1, p2, p3]).values
+        [use_timestamps, str(int(bin_size_time / 60)) + 'm' + str(bin_size_time % 60) + 's', error_type, t_lig, alpha, p1, p2, p3]).values
 
     if use_timestamps:
-        metadata = pd.DataFrame(
-            columns=['use_timestamps', 'n_cells', 'Plot_Error_type', 'Plot_Ligand_time', 'stat_alpha', 'stat_p1',
-                     'stat_p2', 'stat_p3'])
+        metadata = pd.DataFrame(columns=['use_timestamps', 'n_cells', 'Plot_Error_type', 'Plot_Ligand_time',
+                                         'stat_alpha', 'stat_p1', 'stat_p2', 'stat_p3'])
         metadata.loc[len(metadata)] = pd.Series(
             [use_timestamps, str(int(bin_size_time / 60)) + 'm' + str(bin_size_time % 60) + 's', error_type, t_lig,
              alpha, p1, p2, p3]).values
     else:
         metadata = pd.DataFrame(
-            columns=['use_timestamps', 'n_cells', 'Plot_Error_type', 'Plot_Ligand_index', 'stat_alpha', 'stat_p1',
-                     'stat_p2', 'stat_p3'])
+            columns=['use_timestamps', 'n_cells', 'Plot_Error_type', 'Plot_Ligand_index', 'stat_alpha',
+                     'stat_p1', 'stat_p2', 'stat_p3'])
         metadata.loc[len(metadata)] = pd.Series(
-            [use_timestamps, str(bin_size_cells), error_type, t_lig,
-             alpha, p1, p2, p3]).values
+            [use_timestamps, str(bin_size_cells), error_type, t_lig, alpha, p1, p2, p3]).values
 
-    output_folder(outputFile, 'metadata',
-                  [['metadata', metadata]])
+    # Save metadata
+    output_folder(output_file, 'metadata',[['metadata', metadata]])
     try:
-        output_folder(outputFile, 'metadata',
-                      [['metadata', metadata]])
-
+        output_folder(output_file, 'metadata', [['metadata', metadata]])
     except ValueError:
         pass
-    outputFile.close()
-    # runs the statistic tests
+
+    # Finalize and close output file
+    output_file.close()
+
+    # Run statistical tests if required
     if use_timestamps:
-        run_stats = False
+        run_stats = False  # override if timestamps are used
+
     if run_stats:
+        # Create folders for test results
         os.mkdir(save_dir + '\\tests')
         os.mkdir(save_dir + '\\tests\\normality')
+
+        # Run normality (and optionally significance) tests
         if use_timestamps:
             if ligand:
-                normFrames, signFrames = test_by_time(coverslip_data, bin_size_time, ligand, alpha, p1, p2, p3)
+                norm_frames, sign_frames = test_by_time(coverslip_data, bin_size_time, ligand, alpha, p1, p2, p3)
             else:
-                normFrames = test_by_time(coverslip_data, bin_size_time, ligand, alpha, p1, p2, p3)
+                norm_frames = test_by_time(coverslip_data, bin_size_time, ligand, alpha, p1, p2, p3)
         else:
             if ligand:
-                normFrames, signFrames = test_by_cell(coverslip_data, bin_size_cells, ligand, alpha, p1, p2, p3)
+                norm_frames, sign_frames = test_by_cell(coverslip_data, bin_size_cells, ligand, alpha, p1, p2, p3)
             else:
-                normFrames = test_by_cell(coverslip_data, bin_size_cells, ligand, alpha, p1, p2, p3)
-        for key in normFrames.keys():
+                norm_frames = test_by_cell(coverslip_data, bin_size_cells, ligand, alpha, p1, p2, p3)
+
+        # Save normality test results
+        for key in norm_frames.keys():
             key2 = key
             if key.split('_')[0] == 'P':
                 name = 'fractions'
@@ -1298,12 +1366,14 @@ def main(config_path):
                 os.mkdir(save_dir + '\\tests\\normality\\' + name)
             except FileExistsError:
                 pass
-            normFrames[key].to_csv(
+            norm_frames[key].to_csv(
                 save_dir + '\\tests\\normality\\' + name + '\\test_normality_' + name + "_" + key2.split('_')[
                     -1] + '.csv', index=False)
+
+        # Save significance test results (if ligand present)
         if ligand:
             os.mkdir(save_dir + '\\tests\\significance')
-            for key in signFrames.keys():
+            for key in sign_frames.keys():
                 key2 = key
                 if key.split('_')[0] == 'P':
                     name = 'fractions'
@@ -1323,17 +1393,16 @@ def main(config_path):
                 except FileExistsError:
                     pass
                 if key == key2:
-                    signFrames[key].to_csv((
-                                                       save_dir + '\\tests\\significance\\' + name + '\\test_significance_' + name + "_" +
-                                                       key2.split('_')[
-                                                           -1] + '.csv'), index=False)
+                    sign_frames[key].to_csv((
+                            save_dir + '\\tests\\significance\\' + name + '\\test_significance_' + name + "_" +
+                            key2.split('_')[-1] + '.csv'), index=False)
                 else:
-                    signFrames[key].to_csv((
-                            save_dir + '\\tests\\significance\\' + name + '\\test_significance_' + name + '.csv'), index=False)
+                    sign_frames[key].to_csv((save_dir + '\\tests\\significance\\' + name + '\\test_significance_' + name + '.csv'), index=False)
 
+    # Print execution time
     print("--- %s seconds ---" % (time.time() - start_time))
 
-
+# Entry point for script execution
 if __name__ == "__main__":
     try:
         cfg_path = sys.argv[1]
