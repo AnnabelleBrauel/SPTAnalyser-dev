@@ -180,6 +180,9 @@ def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_t
         if len(df) > len(longest_df):
             longest_df = df
 
+    print("Example row from stats:", stats[0])
+    print("Length:", len(stats[0]))
+
     # Plot horizontal bars for mean values with error shading
     for i, row in enumerate(stats):
         if error_type == 'SEM':
@@ -1232,6 +1235,8 @@ def main(config_path):
 
     # Save global means
     output_folder(output_file, 'global means', [['global means', global_mean]])
+
+    print("COVERSLIP_DATA:", coverslip_data)
 
     # Save raw fractions data
     output_folder(output_file_raw, 'fractions',
