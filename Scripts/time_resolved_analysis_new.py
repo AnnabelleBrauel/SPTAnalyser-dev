@@ -1,9 +1,10 @@
 """
-@author: Alexander Niedrig
-Research group Heilemann
+@author: Annabelle Brauel (based on work by Alexander Niedrig)
+Research Group Heilemann
 Institute for Physical and Theoretical Chemistry, Goethe University Frankfurt a.M.
-Calculates mean values over timeframes, plots them, runs statistical tests, and rearranges input data in an output file
+Extracts time course of single-particle tracking measurements and plots it
 """
+
 import configparser
 import math
 import os
@@ -12,19 +13,17 @@ import shutil
 import sys
 import time
 from datetime import datetime
-
-import tifffile
-from tifffile import TiffFile
-import warnings
-from fileinput import filename
-from ftplib import all_errors
-
-import h5py
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy.stats as scy
+import h5py
 
+#import tifffile
+#from tifffile import TiffFile
+#import warnings
+#from fileinput import filename
+#from ftplib import all_errors
+#import matplotlib.pyplot as plt
+#import scipy.stats as scy
 # from TrackAnalysis import cover_slip
 
 
@@ -293,18 +292,7 @@ def load_user_input(config_path):
             h5_paths.append(config["GLOBAL_DIR"][key])
     except KeyError:
         raise IncorrectConfigException("Section [GLOBAL_DIR] missing in config file.")
-
     # print("h5_paths:", h5_paths)
-
-    # --- USE_TIMESTAMPS section ---
-    try:
-        use_timestamps = config.getboolean("USE_TIMESTAMPS", "use_timestamps", fallback=False)
-        t_lig = config["USE_TIMESTAMPS"]["ligand_index"]
-    except KeyError as e:
-        raise IncorrectConfigException(f"Missing parameter in [USE_TIMESTAMPS]: {e}")
-
-    # print("use timestamps:", use_timestamps)
-    # print("t_lig:", t_lig)
 
     # --- CS_DIRS section ---
     try:
@@ -314,13 +302,11 @@ def load_user_input(config_path):
             cs_paths.append(config["CS_DIRS"][key])
     except KeyError:
         raise IncorrectConfigException("Section [CS_DIRS] missing in config file.")
-
     # print("cs paths:\n", cs_paths)
 
     # Collect TIFF metadata files
     for directory in cs_paths:
         tif_files += get_matching_files(os.path.join(directory, "cells", "tifs"), "cell", ["_dl", "metadata"])
-
     # print("tif files:\n", tif_files)
 
     # Extract coverslip names from TIFF files
@@ -331,16 +317,26 @@ def load_user_input(config_path):
         first_tif = tifs[0]
         cs_name = '_'.join(first_tif.split("_")[:-2])
         cs_names.append(cs_name)
-
     # print("cs names:\n", cs_names)
 
-    # --- BIN_SIZE section ---
+    # --- BINNING section ---
     try:
-        bin_size_cells = int(config["BIN_SIZE"]["cells"])
-        bin_size_time = float(config["BIN_SIZE"]["time"])
+        use_timestamps = config.getboolean("BINNING", "use_timestamps")
+    except KeyError as e:
+        raise IncorrectConfigException(f"Missing parameter in [BINNING]: {e}")
+    try:
+        bin_size = float(config["BINNING"]["bin_size"])
     except KeyError:
         raise IncorrectConfigException("Section [BIN_SIZE] missing in config file.")
-
+    if use_timestamps == True:
+        bin_size_time = bin_size
+        bin_size_cells = 0
+    elif use_timestamps == False:
+        bin_size_cells = bin_size
+        bin_size_time = 0
+    else:
+        raise IncorrectConfigException(f"Check 'use_timestamps' in [BINNING]")
+        # print("use timestamps:", use_timestamps)
     # print("bin size cells:", bin_size_cells)
     # print("bin size time:", bin_size_time)
 
@@ -348,13 +344,17 @@ def load_user_input(config_path):
     try:
         plot_color = config["PLOT_SETTINGS"].get("dot_color", "#FFA500") or "#FFA500"
         ligand_exists = config.getboolean("PLOT_SETTINGS", "ligand", fallback=False)
+        if ligand_exists:
+            t_lig = config["PLOT_SETTINGS"]["ligand_index"]
+        else:
+            t_lig = 0
         ligand_name = config["PLOT_SETTINGS"]["ligand_name"]
         error_type = config["PLOT_SETTINGS"]["error_type"]
     except KeyError as e:
         raise IncorrectConfigException(f"Missing parameter in [PLOT_SETTINGS]: {e}")
-
     # print("dot/plot color:", plot_color)
     # print("ligand (exists):", ligand_exists)
+    # print("ligand index:", t_lig)
     # print("ligand name:", ligand_name)
     # print("error type:", error_type)
 
@@ -413,13 +413,13 @@ def load_user_input(config_path):
 
         # Time and binning settings
         "use_timestamps": use_timestamps,
-        "t_lig": t_lig,
         "bin_size_cells": bin_size_cells,
         "bin_size_time": bin_size_time,
 
         # Plot configuration
         "plot_color": plot_color,
         "ligand_exists": ligand_exists,
+        "t_lig": t_lig,
         "ligand_name": ligand_name,
         "error_type": error_type,
 
@@ -491,7 +491,7 @@ def load_cell_data(coverslip_name, coverslip_cells, h5_files, tif_files):
         with open(meta_path, "r", encoding="utf-8") as f:
             for line in f:
                 if '"Time"' in line:
-                    # mit Regex den Zeitstempel extrahieren
+                    # Extract timestamp from metadata
                     match = re.search(r'"Time"\s*:\s*"([^"]+)"', line)
                     if match:
                         return match.group(1)
@@ -645,59 +645,91 @@ def load_cell_data(coverslip_name, coverslip_cells, h5_files, tif_files):
     return coverslip_data
 
 
-def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_cells):
+def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins=True):
     """
-    Bins all coverslips either by time or by cell number, calculates mean, SD, SEM per bin,
-    and returns a dictionary of binned DataFrames, stacked data, and index of largest binned dataset.
+    Bins all cells from *all* coverslips together (shared bin edges) by time or cell number.
+    Calculates mean, SD, SEM per bin and returns same structure as before.
     """
 
-    def determine_bins(frame, use_timestamps, bin_size_time, bin_size_cells):
+    # print("\n", all_coverslips_data, "\n")
+    # TODO: add behavior with negative times! (before ligand addition)
+
+    def determine_bins(frame, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins=True):
         """
-        Returns a list of lists of row indices representing the bins.
+        If use_timestamps==True: returns fixed time windows anchored at global min(Time).
+        If use_timestamps==False: returns index-based bins of size bin_size_cells.
         """
         if frame.empty:
-            print("Frame is empty, no bins to create.")
+            print("  determine_bins: empty global frame -> no bins")
             return []
 
         if use_timestamps:
+            print(f"  determine_bins: GLOBAL time-based binning with window {bin_size_time} min (fixed windows).")
+            # compute minutes from global start
+            if pd.api.types.is_datetime64_any_dtype(frame['Time']):
+                start_time = frame['Time'].min()
+                minutes = (frame['Time'] - start_time).dt.total_seconds() / 60.0
+            elif pd.api.types.is_numeric_dtype(frame['Time']):
+                start_time = frame['Time'].min()
+                minutes = frame['Time'].astype(float) - float(start_time)
+            else:
+                raise TypeError("Column 'Time' must be datetime or numeric (minutes).")
+
+            max_min = minutes.max()
+            n_windows = int(np.ceil((max_min + 1e-9) / bin_size_time))  # number of full windows
             bins = []
-            start_idx = 0
-            while start_idx < len(frame):
-                start_time = frame.loc[start_idx, 'Time']
-                bin_indices = []
-                for i in range(start_idx, len(frame)):
-                    delta_min = (frame.loc[i, 'Time'] - start_time).total_seconds() / 60
-                    if delta_min <= bin_size_time:
-                        bin_indices.append(i)
-                    else:
-                        break
-                bins.append(bin_indices)
-                print(f"Created time bin: indices {bin_indices}, "
-                      f"time range {frame.loc[bin_indices[0], 'Time']} - {frame.loc[bin_indices[-1], 'Time']}")
-                start_idx = bin_indices[-1] + 1
+            print(f"\nAssigning {len(frame)} entries into {n_windows + 1} time bins ({bin_size_time} min each):")
+
+            for w in range(n_windows + 1):
+                ws = w * bin_size_time
+                we = ws + bin_size_time
+                mid_time = (ws + we) / 2
+                idx = list(minutes[(minutes >= ws) & (minutes < we)].index)
+
+                # Prepare detailed info
+                if idx:
+                    details = "\n".join(
+                        [f"      - | {frame.loc[i, 'Cell Name']:<35} | {minutes[i]:6.2f} min" for i in idx])
+                else:
+                    details = "      <empty>"
+
+                print(f"  Window {w:02d}: {ws:6.2f}–{we:6.2f} min → {len(idx)} entries\n{details}")
+                if idx or allow_empty_time_bins:
+                    bins.append(idx)
+
+            print("-" * 60)
             return bins
+
         else:
-            # Bin by number of cells
+            print(f"  determine_bins: GLOBAL cell-count binning with bin_size {bin_size_cells}")
             bins = [list(range(i, min(i + bin_size_cells, len(frame))))
                     for i in range(0, len(frame), bin_size_cells)]
-            for b in bins:
-                print(f"Created cell-number bin: indices {b}, "
-                      f"cell names {frame.iloc[b[0], 0]} - {frame.iloc[b[-1], 0]}")
+            for bi, b in enumerate(bins):
+                names = f"{frame.iloc[b[0], 0]} - {frame.iloc[b[-1], 0]}" if b else "empty"
+                print(f"    cell-bin {bi}: indices {b} -> {names}")
             return bins
 
     def aggregate_bins(frame, bins):
         """
-        Aggregates rows according to the provided bins (list of lists of row indices)
-        Returns a DataFrame with mean, SD, SEM for all numeric columns, plus new columns for SD/SEM.
+        Aggregates rows according to provided bins (list of lists of row indices)
+        Returns a DataFrame with mean, SD, SEM for all numeric columns.
         """
 
         binned_rows = []
-        numeric_cols = frame.select_dtypes(include='number').columns  # only numeric columns
-
-        print(f"\nAggregating bins for coverslip with {len(frame)} cells...")
-        print(f"Numeric columns: {list(numeric_cols)}\n")
+        numeric_cols = frame.select_dtypes(include='number').columns
 
         for bin_idx, bin_indices in enumerate(bins):
+            if not bin_indices:
+                # empty bin
+                empty_series = pd.Series({col: np.nan for col in numeric_cols})
+                for col in numeric_cols:
+                    empty_series[f"{col}_sd"] = np.nan
+                    empty_series[f"{col}_sem"] = np.nan
+                empty_series['Cell_range'] = "empty"
+                empty_series['Num_cells'] = 0
+                binned_rows.append(empty_series)
+                continue
+
             bin_df = frame.iloc[bin_indices]
             mean_vals = bin_df[numeric_cols].mean()
             sd_vals = bin_df[numeric_cols].std()
@@ -712,47 +744,32 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
             combined['Num_cells'] = len(bin_indices)
             binned_rows.append(combined)
 
-            # --- Verbessertes, kompaktes Print ---
             print(f"Bin {bin_idx}: Cells {bin_indices[0]}-{bin_indices[-1]} ({len(bin_indices)} cells)")
-            for col in numeric_cols:
-                val = mean_vals[col]
-                sd = sd_vals[col]
-                sem = sem_vals[col]
-                print(f"  {col}: {val:.3f} ± {sd:.3f} (SEM: {sem:.3f})")
             print("-" * 40)
-
-        if not binned_rows:
-            print("No bins to aggregate.")
-            return pd.DataFrame()
 
         binned_df = pd.DataFrame(binned_rows)
         print(f"Completed aggregation. Total bins: {len(binned_df)}\n")
         return binned_df
 
-    # Main loop over all coverslips
-    all_coverslips_binned = {}
-    for cs_name, cs_df in all_coverslips_data.items():
-        print(f"\nProcessing coverslip: {cs_name}, total cells: {len(cs_df)}")
-        if cs_df.empty:
-            print(f"  Skipping empty coverslip: {cs_name}")
-            continue
-        bins = determine_bins(cs_df, use_timestamps, bin_size_time, bin_size_cells)
-        binned_df = aggregate_bins(cs_df, bins)
-        all_coverslips_binned[cs_name] = binned_df
-        print(f"Finished coverslip {cs_name}, binned rows: {len(binned_df)}")
+    # --- Combine all coverslips into one DataFrame ---
+    print("\nCombining all coverslips for global binning...")
+    global_df = pd.concat(all_coverslips_data.values(), ignore_index=True)
+    print(f"Global dataset size: {len(global_df)} rows from {len(all_coverslips_data)} coverslips.")
 
-    # Stacked data
-    stacked_data = pd.concat(all_coverslips_binned.values(), ignore_index=True)
-    print(f"\nStacked data contains {len(stacked_data)} rows in total.")
+    # --- Determine global bins ---
+    bins = determine_bins(global_df, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins)
 
-    # Index of largest binned dataset
-    if all_coverslips_binned:
-        largest_bindex = max(range(len(all_coverslips_binned)),
-                             key=lambda i: len(list(all_coverslips_binned.values())[i]))
-        print(f"Largest binned coverslip index: {largest_bindex}")
-    else:
-        largest_bindex = None
-        print("No coverslips were binned.")
+    # --- Aggregate globally ---
+    global_binned = aggregate_bins(global_df, bins)
+    print("--------------------\n", global_binned, "----------------------\n")
+
+    # --- Assemble return structures ---
+    all_coverslips_binned = {"GLOBAL": global_binned}
+    stacked_data = global_binned.copy()
+    largest_bindex = 0  # only one entry
+
+    print(f"\nGlobal stacked data: {len(stacked_data)} rows in total.")
+    print("Binning completed successfully (GLOBAL).")
 
     return all_coverslips_binned, stacked_data, largest_bindex
 
@@ -774,7 +791,7 @@ def main(config_path):
         cs_names=config["cs_names"]
     )
 
-    # Load cell data for each coverslip into a dictionary
+    # Load cell data for each coverslip into a dictionary & assign a relative timestamp
     all_coverslips_data = {}  # key = coverslip_name, value = DataFrame with values for each cell in the coverslip
     for cs_name, cs_cells in coverslip_dict.items():
         print(f"\nLoading data for coverslip {cs_name} with {len(cs_cells)} cells...")
