@@ -16,13 +16,14 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import h5py
+import matplotlib.pyplot as plt
+import itertools
 
 #import tifffile
 #from tifffile import TiffFile
 #import warnings
 #from fileinput import filename
 #from ftplib import all_errors
-#import matplotlib.pyplot as plt
 #import scipy.stats as scy
 # from TrackAnalysis import cover_slip
 
@@ -49,215 +50,6 @@ def get_matching_files(directory, target, exclusion_string):
                 if not any([True for string in exclusion_string if string.lower() in name.lower()]):
                     matching_files.append(os.path.join(path, name))
     return matching_files
-
-
-def sort_cells(cells):
-    """
-    Sorts a list of cell names in alphanumeric order, taking into account numeric parts.
-    For example: ["Cell_1", "Cell_10", "Cell_2"] -> ["Cell_1", "Cell_2", "Cell_10"]
-
-    :param cells: List of cell name strings
-    :return: List of alphanumerically sorted cell names
-    """
-
-
-def insert_error(mean_frame, sd_frame, sem_frame):
-    """
-    Inserts standard deviation (SD) and standard error of the mean (SEM) columns
-    into a dataframe containing mean values, directly after their corresponding mean column.
-
-    :param mean_frame: Dataframe with mean values
-    :param sd_frame: Dataframe with standard deviations
-    :param sem_frame: Dataframe with standard errors of the mean
-    :return: Modified dataframe with SD and SEM inserted
-    """
-
-
-def calc_mean_over_cs(binned_data, attribute):
-    """
-    Calculates the mean, standard deviation, and standard error of a specified attribute
-    across a list of binned dataframes (e.g. from different coverslips).
-
-    :param binned_data: List of binned dataframes
-    :param attribute: Name pattern of the attribute to aggregate
-    :return: Numpy array with [mean, std, sem] per row
-    """
-
-
-def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_type, clr):
-    """
-    Plots time-dependent data from multiple dataframes as individual dots and average bars with error shading.
-
-    :param dataframes: List of raw dataframes to be plotted (dots)
-    :param attribute: Attribute to be plotted:
-            P: Percentage of mobile molecules
-            D: Diffusion coefficient
-            L: Track length
-            N: Number of tracks/particles
-            confinement_radius: confinement radius
-    :param t_lig: Time of ligand addition (e.g. "180s")
-    :param ligand_name: Name of the ligand to label the vertical line
-    :param binned_data: List of binned data per coverslip for calculating statistics
-    :param error_type: 'SEM' or 'SD' - determines which error to use
-    :param clr: Color of the raw data dots
-    :return: The generated plot
-    """
-
-
-def plot_by_cells(dataframes, attribute, t_lig, ligand_name, binned_data, error_type, clr):
-    """
-    Plots attribute values per cell number across multiple dataframes,
-    with optional ligand marking and binned mean/error overlays.
-
-    :param dataframes: List of raw dataframes to be plotted
-    :param attribute: Attribute to be plotted
-            P: Percentage of mobile molecules
-            D: Diffusion coefficient
-            L: Track length
-            N: Number of tracks/particles
-            confinement_radius: confinement radius
-    :param t_lig: Ligand addition time (e.g. '40c')
-    :param ligand_name: Name of the ligand
-    :param binned_data: List of binned data per coverslip
-    :param error_type: 'SEM' or 'SD' to determine error bars
-    :param clr: Color used for individual data points
-    :return: The generated matplotlib plot
-    """
-
-
-def bin_data_time(frame, bin_size):
-    """
-    Groups rows of a dataframe into time bins, calculates statistical
-    summaries for each bin, and returns a new dataframe with added SD and SEM columns.
-
-    :param frame: Input dataframe containing single-cell data with time information
-    :param bin_size: Size of time bins (in the same units as column 1 in the dataframe)
-    :return: Dataframe containing the mean, SD, and SEM of each attribute per time bin
-    """
-
-
-def test_by_cell(frames, bin_size, ligand, alpha, p1, p2, p3):
-    """
-    Runs statistical tests over bins of a certain number of cells.
-
-    :param frames: List of dataframes to test
-    :param bin_size: Number of cells per bin
-    :param ligand: If True, run significance tests between bins
-    :param alpha: Significance level for normality tests
-    :param p1, p2, p3: thresholds for statistical significance (*, **, ***)
-    :return: Dictionary of normality test results, and optionally significance test results
-    """
-
-
-def test_by_time(frames, bin_size, ligand, alpha, p1, p2, p3):
-    """
-    Runs statistical tests over time-based bins.
-
-    :param frames: List of dataframes to test
-    :param bin_size: Duration of each bin (in seconds)
-    :param ligand: If True, run significance tests between bins
-    :param alpha: Significance level for normality tests
-    :param p1, p2, p3: thresholds for statistical significance (*, **, ***)
-    :return: Dictionary of normality test results, and optionally significance test results
-    """
-
-
-def normality_tests(dataframe, attribute):
-    """
-    Run two normality tests on a selected attribute.
-
-    :param dataframe: Dataframe with relevant data
-    :param attribute: Column name of the variable to test
-    :return: Statistics and p-values from Shapiro and Kolmogorov-Smirnov tests
-    """
-
-
-def significance_tests(reference_frame, data_frame, attribute_to_compare):
-    """
-    Compares two distributions using the appropriate paired test (t-test or Wilcoxon),
-    depending on whether data is normally distributed.
-
-    :param reference_frame: Reference distribution (pandas DataFrame)
-    :param data_frame:  Comparison distribution (pandas DataFrame)
-    :param attribute_to_compare: Column name to compare, e.g. D_confined (str)
-    :return: Test statistics and p-values for paired t-test and Wilcoxon test
-    """
-
-
-def compile_columns(frames, columns, rename_cols):
-    """
-    Merges columns with matching names from multiple dataframes.
-
-    :param frames: List of input dataframes
-    :param columns: List of substrings to match in column names
-    :param rename_cols: Whether to prefix columns with date to avoid duplication
-    :return: A combined DataFrame of selected columns
-    """
-
-
-def generate_shortname(value):
-    """
-    Cleans up values for HDF5 writing by removing trailing colons.
-
-    :param value: Value to clean
-    :return: Sanitized string representation
-    """
-
-
-def cut_cell_names(name):
-    """
-    Extracts cell number from full identifier.
-
-    :param name: Full name string (e.g., "sample_cell_42")
-    :return: Extracted cell number (e.g., "42")
-    """
-
-
-def output_folder(file, folder, datasets):
-    """
-    Writes datasets to a group in an HDF5 file.
-
-    :param file: Open h5 py file handle
-    :param folder: Name of group (folder) to write into
-    :param datasets: List of [name, DataFrame] pairs to write
-    """
-
-
-def rename_columns(old_col_names):
-    """
-    Appends units to column names based on their semantic label.
-
-    :param old_col_names: List of original column names
-    :return: List of renamed columns with units
-    """
-
-
-def four_set_output(save_dir, outputfile, dataset, coverslip_data, use_timestamps, plot_color, t_lig,
-                    ligand_name, error_type, binned):
-    """
-    Outputs analysis data for four diffusion types: 'global', 'immobile', 'confined', 'free'.
-
-    :param save_dir: directory where plots and data will be saved
-    :param outputfile: HDF5 file to write the output into
-    :param dataset: dataset inside the HDF5 file
-    :param coverslip_data: list of pandas DataFrames with coverslip data
-    :param use_timestamps: whether time-based plotting is used
-    :param plot_color: color used for plots
-    :param t_lig: ligand addition time (in seconds or relative time)
-    :param ligand_name: name of the ligand
-    :param error_type: error display type ('SD' or 'SEM')
-    :param binned: whether to output data as binned time response
-    """
-
-
-def stack_data(dataframes):
-    """
-    Stacks multiple DataFrames (from different coverslips) vertically into a single DataFrame.
-
-    :param dataframes: list of dataframes
-    :return: a single-element list containing one DataFrame with all input frames stacked
-    """
-    # Define the expected column names in the correct order
 
 
 def load_user_input(config_path):
@@ -311,13 +103,20 @@ def load_user_input(config_path):
 
     # Extract coverslip names from TIFF files
     for cs in cs_paths:
-        tifs = os.listdir(os.path.join(cs, "cells", "tifs"))
+        all_files = os.listdir(os.path.join(cs, "cells", "tifs"))
+        tifs = [f for f in all_files if f.lower().endswith(('.tif', '.tiff'))]
         if not tifs:
             raise IncorrectConfigException(f"No TIFF files found in {cs}\\cells\\tifs")
         first_tif = tifs[0]
         cs_name = '_'.join(first_tif.split("_")[:-2])
         cs_names.append(cs_name)
     # print("cs names:\n", cs_names)
+
+    # --- LIGAND_ADDITION section ---
+    try:
+        ligand_time = config["LIGAND_ADDITION"]["ligand_time"]
+    except KeyError as e:
+        raise IncorrectConfigException(f"Missing parameter in [LIGAND_ADDITION]: {e}")
 
     # --- BINNING section ---
     try:
@@ -411,6 +210,9 @@ def load_user_input(config_path):
         "h5_files": h5_files,
         "tif_files": tif_files,
 
+        # Ligand configuration
+        "ligand_time": ligand_time,
+
         # Time and binning settings
         "use_timestamps": use_timestamps,
         "bin_size_cells": bin_size_cells,
@@ -432,46 +234,74 @@ def load_user_input(config_path):
     }
 
 
-def load_and_sort_input_data(h5_files, tif_files, cs_names):
+def load_and_sort_input_data(h5_files, tif_files, cs_names, cs_paths, ligand_time):
     """
     Match each .h5 file to its corresponding .tif file based on filename substring matching.
-    Returns a dictionary mapping each coverslip name to a list of .h5 filenames.
+    Optionally, find a .txt file per coverslip to get the ligand_time.
+    Returns a dictionary mapping each coverslip name to:
+        {'cells': [sorted .h5 filenames], 'ligand_time': time_str or None}
     """
 
     # Helper function to find the matching .tif file for a given .h5 file
-    def find_matching_tif(filename, tif_files, exclusion_str="metadata"):
-        """Return the .tif file that contains 'filename' and does not contain 'exclusion_str'."""
-        matches = [tif for tif in tif_files if filename in tif and exclusion_str not in tif]
+    def find_matching_tif(filename, tif_files):
+        # Return the .tif file that contains 'filename' and does not contain 'exclusion_str'.
+        exclusion_strs = ["metadata", ".txt", "_dl"]
+        matches = [
+            tif for tif in tif_files
+            if filename in tif and all(excl not in tif for excl in exclusion_strs)
+        ]
         if len(matches) > 1:
             raise ValueError(f"Multiple matches found for '{filename}'")
         elif len(matches) == 0:
             raise FileNotFoundError(f"No matching .tif file found for '{filename}'")
         return matches[0]
 
-    # --- Helper function: natural sorting for filenames: cell_1, cell_10, cell_2, ... -> cell_1, cell_2, ..., cell_10
+
+    # Helper function to sort filenames naturally: cell_1, cell_10, cell_2, ... -> cell_1, cell_2, ..., cell_10
     def sort_cells(cells):
         def natural_key(s):
             return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
         return sorted(cells, key=natural_key)
 
-    # Initialize output dictionary
-    coverslip_dict = {c: [] for c in cs_names}
+    # Initialize output dictionary: each coverslip has a list of cells and a time of ligand addition
+    coverslip_dict = {c: {'cells': [], 'ligand_time': None} for c in cs_names}
 
     # Assign .h5 files to their coverslip
     for h5 in h5_files:
         filename = h5.split("\\")[-1][:-2]
-        tif = find_matching_tif(filename, tif_files, exclusion_str="metadata")  # remove path and last two chars (.h5)
+        tif = find_matching_tif(filename, tif_files)  # remove path and last two chars (.h5)
         coverslip_name = '_'.join(tif.split("\\")[-1].split('_')[:-2])
-        coverslip_dict[coverslip_name].append(filename)
+        coverslip_dict[coverslip_name]['cells'].append(filename)
 
     # Sort the cell lists for each coverslip
     for cs in coverslip_dict:
-        coverslip_dict[cs] = sort_cells(coverslip_dict[cs])
+        coverslip_dict[cs]['cells'] = sort_cells(coverslip_dict[cs]['cells'])
+
+    print("\n")
+
+    # Extract ligand_time from .txt files if requested
+    if ligand_time == "txt":
+        for cs_name, cs_path in zip(cs_names, cs_paths):
+            found = False
+            for root, dirs, files in os.walk(cs_path):
+                for f in files:
+                    if f.endswith('.txt'):
+                        # Use search to match HH_MM anywhere in filename
+                        match = re.search(r'(\d{1,2})_(\d{2})\.txt', f)
+                        if match:
+                            coverslip_dict[cs_name]['ligand_time'] = f"{match.group(1)}:{match.group(2)}"
+                            print(f"Found ligand addition time for {cs_name}: {coverslip_dict[cs_name]['ligand_time']}")
+                            found = True
+                            break
+                if found:
+                    break
+                if not found:
+                    continue
 
     return coverslip_dict
 
 
-def load_cell_data(coverslip_name, coverslip_cells, h5_files, tif_files):
+def load_cell_data(coverslip_name, coverslip_cells, ligand_time, h5_files, tif_files):
     """
     Loads all cells of a coverslip into a DataFrame.
 
@@ -541,15 +371,29 @@ def load_cell_data(coverslip_name, coverslip_cells, h5_files, tif_files):
             # Fallback: if no timezone info
             cell_time = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
 
-        # Set start time if first cell
-        if cs_start_time is None:
-            cs_start_time = cell_time
-            print("Start time:", cs_start_time)
+        if ligand_time == None:
 
-        # Calculate elapsed time in minutes
-        time_elapsed = (cell_time - cs_start_time).total_seconds() / 60.0
-        time_elapsed = round(time_elapsed, 2)
-        print(f"{cell}: {time_elapsed} min")
+            # Set start time if first cell
+            if cs_start_time is None:
+                cs_start_time = cell_time
+                print("Start time:", cs_start_time)
+
+            # Calculate elapsed time in minutes
+            time_elapsed = (cell_time - cs_start_time).total_seconds() / 60.0
+            time_elapsed = round(time_elapsed, 2)
+            print(f"{cell}: {time_elapsed} min")
+
+        else:
+
+            # Convert ligand_time string (e.g. "19:09") to datetime on the same day as first cell
+            ligand_hour, ligand_minute = map(int, ligand_time.split(":"))
+            ligand_datetime = cell_time.replace(hour=ligand_hour, minute=ligand_minute, second=0, microsecond=0)
+
+            # Calculate relative time in minutes to ligand_time
+            time_elapsed = (cell_time - ligand_datetime).total_seconds() / 60.0
+            time_elapsed = round(time_elapsed, 2)
+
+            print(f"{cell}: {time_elapsed} min relative to ligand addition")
 
         # Load diffusion data
         with h5py.File(h5_path, "r") as hdf:
@@ -560,9 +404,9 @@ def load_cell_data(coverslip_name, coverslip_cells, h5_files, tif_files):
             # print(diffusion_infos.dtype.names)
 
             # timestamp of first cell
-            if cs_start_time is None:
-                cs_start_time = os.path.getmtime(tif_path)
-                print("start time: ", cs_start_time)
+            #if cs_start_time is None:
+            #    cs_start_time = os.path.getmtime(tif_path)
+            #    print("start time: ", cs_start_time)
 
             # diffusion modes
             p_immobile = float(stats_global['immobile+notype [%]'])
@@ -649,10 +493,10 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
     """
     Bins all cells from *all* coverslips together (shared bin edges) by time or cell number.
     Calculates mean, SD, SEM per bin and returns same structure as before.
+    Returns one dataframe with binned data from all coverslips
     """
 
-    # print("\n", all_coverslips_data, "\n")
-    # TODO: add behavior with negative times! (before ligand addition)
+    #print("\n----------------\n", all_coverslips_data, "\n------------------------\n")
 
     def determine_bins(frame, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins=True):
         """
@@ -664,40 +508,37 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
             return []
 
         if use_timestamps:
-            print(f"  determine_bins: GLOBAL time-based binning with window {bin_size_time} min (fixed windows).")
-            # compute minutes from global start
-            if pd.api.types.is_datetime64_any_dtype(frame['Time']):
-                start_time = frame['Time'].min()
-                minutes = (frame['Time'] - start_time).dt.total_seconds() / 60.0
-            elif pd.api.types.is_numeric_dtype(frame['Time']):
-                start_time = frame['Time'].min()
-                minutes = frame['Time'].astype(float) - float(start_time)
+            print(f"\nDetermine_bins: GLOBAL time-based binning with window {bin_size_time} min fixed windows...")
+
+            # Use Time column from all_coverslips_data
+            if pd.api.types.is_numeric_dtype(frame['Time']):
+                minutes = frame['Time'].astype(float)
             else:
-                raise TypeError("Column 'Time' must be datetime or numeric (minutes).")
+                raise TypeError("Column 'Time' must be numeric (minutes).")
 
-            max_min = minutes.max()
-            n_windows = int(np.ceil((max_min + 1e-9) / bin_size_time))  # number of full windows
+            # Bin edges from min to max, including negative times
+            min_bin = np.floor(minutes.min() / bin_size_time) * bin_size_time
+            max_bin = np.ceil(minutes.max() / bin_size_time) * bin_size_time
+            bin_edges = np.arange(min_bin, max_bin + bin_size_time, bin_size_time)
+
             bins = []
-            print(f"\nAssigning {len(frame)} entries into {n_windows + 1} time bins ({bin_size_time} min each):")
-
-            for w in range(n_windows + 1):
-                ws = w * bin_size_time
-                we = ws + bin_size_time
+            for i in range(len(bin_edges) - 1):
+                ws = bin_edges[i]
+                we = bin_edges[i + 1]
                 mid_time = (ws + we) / 2
                 idx = list(minutes[(minutes >= ws) & (minutes < we)].index)
 
-                # Prepare detailed info
+                # Print detailed info
                 if idx:
                     details = "\n".join(
                         [f"      - | {frame.loc[i, 'Cell Name']:<35} | {minutes[i]:6.2f} min" for i in idx])
                 else:
                     details = "      <empty>"
+                print(f"  Bin {i:02d}: {ws:6.2f} – {we:6.2f} min → {len(idx)} entries\n{details}")
 
-                print(f"  Window {w:02d}: {ws:6.2f}–{we:6.2f} min → {len(idx)} entries\n{details}")
                 if idx or allow_empty_time_bins:
-                    bins.append(idx)
+                    bins.append((idx, mid_time))
 
-            print("-" * 60)
             return bins
 
         else:
@@ -718,13 +559,14 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
         binned_rows = []
         numeric_cols = frame.select_dtypes(include='number').columns
 
-        for bin_idx, bin_indices in enumerate(bins):
+        for bin_idx, (bin_indices, mid_time) in enumerate(bins):
             if not bin_indices:
                 # empty bin
                 empty_series = pd.Series({col: np.nan for col in numeric_cols})
                 for col in numeric_cols:
                     empty_series[f"{col}_sd"] = np.nan
                     empty_series[f"{col}_sem"] = np.nan
+                empty_series['Time'] = mid_time
                 empty_series['Cell_range'] = "empty"
                 empty_series['Num_cells'] = 0
                 binned_rows.append(empty_series)
@@ -740,38 +582,111 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
                 combined[f"{col}_sd"] = sd_vals[col]
                 combined[f"{col}_sem"] = sem_vals[col]
 
+            combined['Time'] = bin_df['Time'].mean() if 'Time' in bin_df else mid_time
             combined['Cell_range'] = f"{bin_indices[0]}-{bin_indices[-1]}"
             combined['Num_cells'] = len(bin_indices)
+
             binned_rows.append(combined)
 
-            print(f"Bin {bin_idx}: Cells {bin_indices[0]}-{bin_indices[-1]} ({len(bin_indices)} cells)")
-            print("-" * 40)
-
         binned_df = pd.DataFrame(binned_rows)
-        print(f"Completed aggregation. Total bins: {len(binned_df)}\n")
+        # print(f"Completed aggregation. Total bins: {len(binned_df)}\n")
         return binned_df
 
-    # --- Combine all coverslips into one DataFrame ---
-    print("\nCombining all coverslips for global binning...")
+    # Combine all coverslips into one global DataFrame
     global_df = pd.concat(all_coverslips_data.values(), ignore_index=True)
-    print(f"Global dataset size: {len(global_df)} rows from {len(all_coverslips_data)} coverslips.")
-
-    # --- Determine global bins ---
+    # Determine bins
     bins = determine_bins(global_df, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins)
-
-    # --- Aggregate globally ---
+    # Aggregate data
     global_binned = aggregate_bins(global_df, bins)
-    print("--------------------\n", global_binned, "----------------------\n")
+    print("\n")
+    print("---\n", global_binned.columns, "\n")
+    print("--- Binned data: ---\n", global_binned)
 
     # --- Assemble return structures ---
-    all_coverslips_binned = {"GLOBAL": global_binned}
-    stacked_data = global_binned.copy()
-    largest_bindex = 0  # only one entry
+    # all_coverslips_binned = {"GLOBAL": global_binned}
+    # stacked_data = global_binned.copy()
+    # largest_bindex = 0  # only one entry
 
-    print(f"\nGlobal stacked data: {len(stacked_data)} rows in total.")
-    print("Binning completed successfully (GLOBAL).")
+    # print(f"\nGlobal stacked data: {len(stacked_data)} rows in total.")
+    print("\nBinning completed successfully.\n")
 
-    return all_coverslips_binned, stacked_data, largest_bindex
+    return global_binned
+
+
+def plot_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists):
+    """
+    Plots D_free vs Time as scatter points with error bars using D_free_sem.
+    """
+
+    #TODO: add plot for percentage of immobile fraction (or second y-axis in existing plot)
+
+    print(data_for_each_cell, "-----------------------")
+
+    # Ensure required columns exist
+    required_cols = ["Time", "D_free", "D_free_sem"]
+    for col in required_cols:
+        if col not in binned_data.columns:
+            raise ValueError(f"DataFrame must contain '{col}' column.")
+
+    plt.figure(figsize=(8, 4))
+
+    min_time = binned_data["Time"].min()
+    max_time = binned_data["Time"].max()
+    n_bins = int(np.ceil((max_time - min_time) / bin_size_time))
+
+    # Draw horizontal lines per bin
+    for i in range(n_bins):
+        start = min_time + i * bin_size_time
+        end = start + bin_size_time
+
+        # Select rows in this bin
+        bin_rows = binned_data[
+            (binned_data["Time"] >= start) &
+            (binned_data["Time"] < end)
+            ]
+
+        if len(bin_rows) == 0:
+            continue
+
+        y = bin_rows["D_free"].mean()
+        yerr = bin_rows["D_free_sem"].mean()
+
+        # Shaded error region (rectangle) over bin
+        plt.fill_between(
+            x=[start, end],
+            y1=y - yerr,
+            y2=y + yerr,
+            color='lightgray',
+            alpha=0.5
+        )
+
+        # Horizontal line at mean
+        plt.hlines(y=y, xmin=start, xmax=end, color='blue', lw=2)
+
+    # Plot individual cell data with different colors per coverslip
+    colors = itertools.cycle(['red', 'green', 'blue', 'orange', 'purple', 'cyan'])
+    for coverslip, df in data_for_each_cell.items():
+        color = next(colors)
+        plt.scatter(df["Time"], df["D_free"], label=coverslip, color=color, alpha=0.7, s=20)
+
+    if ligand_exists:
+        # Vertical line at 0 min with text for ligand addition
+        plt.axvline(x=0, color='red', linestyle='--', lw=1.5)
+        ylim = plt.ylim()
+        plt.text(
+            x=0.2,
+            y=ylim[0] + 0.05*(ylim[1]-ylim[0]),  # text is 5% above x-axis
+            s="+ ligand",
+            color='red',
+            fontsize=10,
+            verticalalignment='bottom')
+
+    # Axis labels
+    plt.xlabel("time / min")
+    plt.ylabel("D_free")
+    plt.title(f"free diffusion coefficient ({bin_size_time} min bins)")
+    plt.tight_layout()
+    plt.show()
 
 
 def main(config_path):
@@ -788,16 +703,21 @@ def main(config_path):
     coverslip_dict = load_and_sort_input_data(
         h5_files=config["h5_files"],
         tif_files=config["tif_files"],
-        cs_names=config["cs_names"]
+        cs_names=config["cs_names"],
+        cs_paths=config["cs_paths"],
+        ligand_time=config["ligand_time"],
     )
 
     # Load cell data for each coverslip into a dictionary & assign a relative timestamp
     all_coverslips_data = {}  # key = coverslip_name, value = DataFrame with values for each cell in the coverslip
-    for cs_name, cs_cells in coverslip_dict.items():
-        print(f"\nLoading data for coverslip {cs_name} with {len(cs_cells)} cells...")
+    for cs_name, cs_data in coverslip_dict.items():  # cs_data = {"cells": [...], "ligand_time": "..."}
+        coverslip_cells = cs_data["cells"]
+        ligand_time = cs_data.get("ligand_time")  # None, falls nicht gesetzt
+        print(f"\nLoading data for coverslip {cs_name} with {len(coverslip_cells)} cells and ligand_time {ligand_time}...")
         all_coverslips_data[cs_name] = load_cell_data(
             coverslip_name=cs_name,
-            coverslip_cells=cs_cells,
+            coverslip_cells=coverslip_cells,
+            ligand_time=ligand_time,
             h5_files=config["h5_files"],
             tif_files=config["tif_files"]
         )
@@ -809,12 +729,20 @@ def main(config_path):
         # coverslip_data[cs_name] = coverslip_data
 
     # Process and bin input data
-    binned_data, stacked_data, largest_bindex = bin_input_data(
+    binned_data = bin_input_data(
         all_coverslips_data = all_coverslips_data,
         use_timestamps=config["use_timestamps"],
         bin_size_time = config["bin_size_time"],
         bin_size_cells = config["bin_size_cells"]
     )
+
+    if config["use_timestamps"] == True:
+        plot_by_time(
+            binned_data=binned_data,
+            data_for_each_cell=all_coverslips_data,
+            bin_size_time = config["bin_size_time"],
+            ligand_exists=config["ligand_exists"]
+        )
 
     # Print execution time
     print("--- %s seconds ---" % (time.time() - start_time))
