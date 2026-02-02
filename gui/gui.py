@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
         self.start_page = StartPage(self.switch_page)
         self.page_1color = OneColorPage(self.switch_page)
         self.page_textfields = TextFieldPage(self.switch_page)
-        self.page_2color = TwoColorPage(self.switch_page())
+        self.page_2color = TwoColorPage(self.switch_page)
 
         # Add pages to the stack and keep track of their indices
         self.stack.addWidget(self.start_page)  # Index 0
