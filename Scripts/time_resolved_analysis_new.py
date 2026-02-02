@@ -496,8 +496,6 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
     Returns one dataframe with binned data from all coverslips
     """
 
-    #print("\n----------------\n", all_coverslips_data, "\n------------------------\n")
-
     def determine_bins(frame, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins=True):
         """
         If use_timestamps==True: returns fixed time windows anchored at global min(Time).
@@ -557,11 +555,13 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
         """
 
         binned_rows = []
-        numeric_cols = frame.select_dtypes(include='number').columns
+        exclude = {'Time', 'Frame', 'Cell_ID'}
+        numeric_cols = [c for c in frame.select_dtypes('number') if c not in exclude]
 
         for bin_idx, (bin_indices, mid_time) in enumerate(bins):
             if not bin_indices:
-                # empty bin
+
+                # empty bins -> fill with NaNs, no calculations
                 empty_series = pd.Series({col: np.nan for col in numeric_cols})
                 for col in numeric_cols:
                     empty_series[f"{col}_sd"] = np.nan
@@ -573,15 +573,32 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
                 continue
 
             bin_df = frame.iloc[bin_indices]
-            mean_vals = bin_df[numeric_cols].mean()
-            sd_vals = bin_df[numeric_cols].std()
-            sem_vals = bin_df[numeric_cols].sem()
 
-            combined = mean_vals.copy()
-            for col in numeric_cols:
-                combined[f"{col}_sd"] = sd_vals[col]
-                combined[f"{col}_sem"] = sem_vals[col]
+            combined = pd.Series(dtype=float)
 
+            # percent values -> compute weighted mean to account for different cell counts per row
+            for col in ['P_immobile', 'P_confined', 'P_free']:
+                n_col = f"N_{col.split('_')[1]}"
+                if col in bin_df.columns and n_col in bin_df.columns:
+                    total_cells = bin_df['N_global'].sum()
+                    if total_cells > 0:
+                        combined[col] = bin_df[n_col].sum() / total_cells * 100
+                    else:
+                        combined[col] = np.nan
+
+            # fit parameters -> use median for robustness & calculate SD and SEM
+            for col in ['D_global', 'D_immobile', 'D_confined', 'D_free']:
+                if col in bin_df.columns:
+                    combined[col] = np.median(bin_df[col])
+                    combined[f"{col}_sd"] = bin_df[col].std()
+                    combined[f"{col}_sem"] = bin_df[col].sem()
+
+            # count values -> sum across all cells in the bin
+            for col in ['N_global', 'N_immobile', 'N_confined', 'N_free']:
+                if col in bin_df.columns:
+                    combined[col] = bin_df[col].sum()
+
+            # time & metadata
             combined['Time'] = bin_df['Time'].mean() if 'Time' in bin_df else mid_time
             combined['Cell_range'] = f"{bin_indices[0]}-{bin_indices[-1]}"
             combined['Num_cells'] = len(bin_indices)
@@ -589,25 +606,14 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
             binned_rows.append(combined)
 
         binned_df = pd.DataFrame(binned_rows)
-        # print(f"Completed aggregation. Total bins: {len(binned_df)}\n")
         return binned_df
 
     # Combine all coverslips into one global DataFrame
     global_df = pd.concat(all_coverslips_data.values(), ignore_index=True)
-    # Determine bins
+
     bins = determine_bins(global_df, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins)
-    # Aggregate data
     global_binned = aggregate_bins(global_df, bins)
-    print("\n")
-    print("---\n", global_binned.columns, "\n")
-    print("--- Binned data: ---\n", global_binned)
 
-    # --- Assemble return structures ---
-    # all_coverslips_binned = {"GLOBAL": global_binned}
-    # stacked_data = global_binned.copy()
-    # largest_bindex = 0  # only one entry
-
-    # print(f"\nGlobal stacked data: {len(stacked_data)} rows in total.")
     print("\nBinning completed successfully.\n")
 
     return global_binned
@@ -620,8 +626,6 @@ def plot_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists):
 
     #TODO: add plot for percentage of immobile fraction (or second y-axis in existing plot)
 
-    print(data_for_each_cell, "-----------------------")
-
     # Ensure required columns exist
     required_cols = ["Time", "D_free", "D_free_sem"]
     for col in required_cols:
@@ -630,37 +634,20 @@ def plot_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists):
 
     plt.figure(figsize=(8, 4))
 
-    min_time = binned_data["Time"].min()
-    max_time = binned_data["Time"].max()
-    n_bins = int(np.ceil((max_time - min_time) / bin_size_time))
-
     # Draw horizontal lines per bin
-    for i in range(n_bins):
-        start = min_time + i * bin_size_time
-        end = start + bin_size_time
+    for _, row in binned_data.iterrows():
+        row_time = row['Time']
 
-        # Select rows in this bin
-        bin_rows = binned_data[
-            (binned_data["Time"] >= start) &
-            (binned_data["Time"] < end)
-            ]
+        # Determine actual bin edges (floor/ceil to nearest multiple of bin_size_time)
+        start = bin_size_time * np.floor(row_time / bin_size_time)
+        end = start + bin_size_time  # bin width is fixed
 
-        if len(bin_rows) == 0:
-            continue
+        y = row['D_free']
+        yerr = row['D_free_sem']
 
-        y = bin_rows["D_free"].mean()
-        yerr = bin_rows["D_free_sem"].mean()
-
-        # Shaded error region (rectangle) over bin
-        plt.fill_between(
-            x=[start, end],
-            y1=y - yerr,
-            y2=y + yerr,
-            color='lightgray',
-            alpha=0.5
-        )
-
-        # Horizontal line at mean
+        # Plot shaded error box
+        plt.fill_between([start, end], y - yerr, y + yerr, color='lightgray', alpha=0.5)
+        # Plot horizontal line at median
         plt.hlines(y=y, xmin=start, xmax=end, color='blue', lw=2)
 
     # Plot individual cell data with different colors per coverslip
@@ -696,9 +683,6 @@ def main(config_path):
     # Load configuration
     config = load_user_input(config_path)   # returns dictionary!
 
-    # print(config)
-    # print(config["tif_files"], "\n----------------------")
-
     # Load and sort input data
     coverslip_dict = load_and_sort_input_data(
         h5_files=config["h5_files"],
@@ -712,7 +696,7 @@ def main(config_path):
     all_coverslips_data = {}  # key = coverslip_name, value = DataFrame with values for each cell in the coverslip
     for cs_name, cs_data in coverslip_dict.items():  # cs_data = {"cells": [...], "ligand_time": "..."}
         coverslip_cells = cs_data["cells"]
-        ligand_time = cs_data.get("ligand_time")  # None, falls nicht gesetzt
+        ligand_time = cs_data.get("ligand_time")  # None, if no ligand
         print(f"\nLoading data for coverslip {cs_name} with {len(coverslip_cells)} cells and ligand_time {ligand_time}...")
         all_coverslips_data[cs_name] = load_cell_data(
             coverslip_name=cs_name,
@@ -722,32 +706,26 @@ def main(config_path):
             tif_files=config["tif_files"]
         )
 
-        # print(all_coverslips_data, "pppppppppppppppppppppp")
-
-        # Zugriff z.B. auf DataFrame von einem Coverslip:
-        # df = all_coverslips_data["250430_CS2_CHO_HT7FGFR1c_SiRHTL_FGF1"]
-        # coverslip_data[cs_name] = coverslip_data
-
     # Process and bin input data
     binned_data = bin_input_data(
-        all_coverslips_data = all_coverslips_data,
+        all_coverslips_data=all_coverslips_data,
         use_timestamps=config["use_timestamps"],
-        bin_size_time = config["bin_size_time"],
-        bin_size_cells = config["bin_size_cells"]
+        bin_size_time=config["bin_size_time"],
+        bin_size_cells=config["bin_size_cells"]
     )
 
     if config["use_timestamps"] == True:
         plot_by_time(
             binned_data=binned_data,
             data_for_each_cell=all_coverslips_data,
-            bin_size_time = config["bin_size_time"],
+            bin_size_time=config["bin_size_time"],
             ligand_exists=config["ligand_exists"]
         )
 
     # Print execution time
     print("--- %s seconds ---" % (time.time() - start_time))
 
-# Entry point for script execution
+
 if __name__ == "__main__":
 
     try:
