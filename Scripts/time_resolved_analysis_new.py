@@ -16,16 +16,9 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import h5py
+import matplotlib
 import matplotlib.pyplot as plt
-import itertools
-
-#import tifffile
-#from tifffile import TiffFile
-#import warnings
-#from fileinput import filename
-#from ftplib import all_errors
-#import scipy.stats as scy
-# from TrackAnalysis import cover_slip
+from matplotlib.patches import Patch
 
 
 class IncorrectConfigException(Exception):
@@ -127,17 +120,11 @@ def load_user_input(config_path):
         bin_size = float(config["BINNING"]["bin_size"])
     except KeyError:
         raise IncorrectConfigException("Section [BIN_SIZE] missing in config file.")
-    if use_timestamps == True:
-        bin_size_time = bin_size
-        bin_size_cells = 0
-    elif use_timestamps == False:
-        bin_size_cells = bin_size
-        bin_size_time = 0
+
+    if use_timestamps in [True, False]:
+        bin_size_time, bin_size_cells = (bin_size, 0) if use_timestamps else (0, bin_size)
     else:
         raise IncorrectConfigException(f"Check 'use_timestamps' in [BINNING]")
-        # print("use timestamps:", use_timestamps)
-    # print("bin size cells:", bin_size_cells)
-    # print("bin size time:", bin_size_time)
 
     # --- PLOT_SETTINGS section ---
     try:
@@ -558,6 +545,8 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
         exclude = {'Time', 'Frame', 'Cell_ID'}
         numeric_cols = [c for c in frame.select_dtypes('number') if c not in exclude]
 
+        print("\n")
+
         for bin_idx, (bin_indices, mid_time) in enumerate(bins):
             if not bin_indices:
 
@@ -589,7 +578,8 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
             # fit parameters -> use median for robustness & calculate SD and SEM
             for col in ['D_global', 'D_immobile', 'D_confined', 'D_free']:
                 if col in bin_df.columns:
-                    combined[col] = np.median(bin_df[col])
+                    combined[f"{col}_median"] = bin_df[col].median()
+                    combined[f"{col}_mean"] = bin_df[col].mean()
                     combined[f"{col}_sd"] = bin_df[col].std()
                     combined[f"{col}_sem"] = bin_df[col].sem()
 
@@ -599,13 +589,14 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
                     combined[col] = bin_df[col].sum()
 
             # time & metadata
-            combined['Time'] = bin_df['Time'].mean() if 'Time' in bin_df else mid_time
+            combined['Time'] = bin_df['Time'].median() if 'Time' in bin_df else mid_time
             combined['Cell_range'] = f"{bin_indices[0]}-{bin_indices[-1]}"
             combined['Num_cells'] = len(bin_indices)
 
             binned_rows.append(combined)
 
         binned_df = pd.DataFrame(binned_rows)
+
         return binned_df
 
     # Combine all coverslips into one global DataFrame
@@ -614,12 +605,12 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
     bins = determine_bins(global_df, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins)
     global_binned = aggregate_bins(global_df, bins)
 
-    print("\nBinning completed successfully.\n")
+    print("Binning completed successfully.\n")
 
     return global_binned
 
 
-def plot_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists):
+def plot_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists, save_dir):
     """
     Plots D_free vs Time as scatter points with error bars using D_free_sem.
     """
@@ -627,33 +618,68 @@ def plot_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists):
     #TODO: add plot for percentage of immobile fraction (or second y-axis in existing plot)
 
     # Ensure required columns exist
-    required_cols = ["Time", "D_free", "D_free_sem"]
+    required_cols = ["Time", "D_free_median", "D_free_mean", "D_free_sem"]
     for col in required_cols:
         if col not in binned_data.columns:
             raise ValueError(f"DataFrame must contain '{col}' column.")
 
-    plt.figure(figsize=(8, 4))
+    plt.figure(figsize=(12, 4))
+
+    bin_edges = []
 
     # Draw horizontal lines per bin
     for _, row in binned_data.iterrows():
-        row_time = row['Time']
 
         # Determine actual bin edges (floor/ceil to nearest multiple of bin_size_time)
-        start = bin_size_time * np.floor(row_time / bin_size_time)
-        end = start + bin_size_time  # bin width is fixed
+        start = bin_size_time * np.floor(row['Time'] / bin_size_time)
+        end = start + bin_size_time  # bin width fixed
+        bin_edges.append(start)
 
-        y = row['D_free']
-        yerr = row['D_free_sem']
+        y_median = row["D_free_median"]
+        y_mean = row["D_free_mean"]
+        yerr = row["D_free_sem"]
 
         # Plot shaded error box
-        plt.fill_between([start, end], y - yerr, y + yerr, color='lightgray', alpha=0.5)
+        plt.fill_between(
+            [start, end],
+            y_mean - yerr,
+            y_mean + yerr,
+            color="lightgray",
+            alpha=0.5
+        )
+
         # Plot horizontal line at median
-        plt.hlines(y=y, xmin=start, xmax=end, color='blue', lw=2)
+        plt.hlines(
+            y=y_median,
+            xmin=start,
+            xmax=end,
+            color="grey",
+            lw=2,
+            label="median" if _ == 0 else None
+        )
+
+        # Plot horizontal line at mean
+        plt.hlines(
+            y=y_mean,
+            xmin=start,
+            xmax=end,
+            color="grey",
+            lw=2,
+            linestyles="--",
+            label="mean" if _ == 0 else None
+        )
+
+    # Create x ticks
+    bin_edges.append(end)
+    bin_edges = sorted(set(bin_edges))
+    plt.xticks(bin_edges)
 
     # Plot individual cell data with different colors per coverslip
-    colors = itertools.cycle(['red', 'green', 'blue', 'orange', 'purple', 'cyan'])
-    for coverslip, df in data_for_each_cell.items():
-        color = next(colors)
+    n_coverslips = len(data_for_each_cell)
+    cmap = matplotlib.colormaps["Blues"]  # shades of blue
+    levels = np.linspace(0.4, 0.9, n_coverslips)
+    colors = [cmap(l) for l in levels]
+    for color, (coverslip, df) in zip(colors, data_for_each_cell.items()):
         plt.scatter(df["Time"], df["D_free"], label=coverslip, color=color, alpha=0.7, s=20)
 
     if ligand_exists:
@@ -668,11 +694,38 @@ def plot_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists):
             fontsize=10,
             verticalalignment='bottom')
 
+    # Legend
+    sem_patch = Patch(facecolor="lightgray", alpha=0.5, label="SEM") # create a dummy object to show SEM boxes in legend
+    handles, labels = plt.gca().get_legend_handles_labels()
+    handles.append(sem_patch)
+    mean_handle = None # this is needed to change the order of legend entries
+    median_handle = None
+    coverslip_handles = []
+    for h, l in zip(handles, labels):
+        if l == "mean":
+            mean_handle = h
+        elif l == "median":
+            median_handle = h
+        else:
+            coverslip_handles.append(h)
+    ordered_handles = [mean_handle, median_handle, sem_patch] + coverslip_handles # new order
+    plt.legend(
+        handles=ordered_handles,
+        loc="center left",
+        bbox_to_anchor=(1.02, 0.5),
+        frameon=False,
+        markerscale=0.6
+    )
+
     # Axis labels
     plt.xlabel("time / min")
-    plt.ylabel("D_free")
-    plt.title(f"free diffusion coefficient ({bin_size_time} min bins)")
+    plt.ylabel(r"D$_\mathrm{free}$ / µm$^\mathrm{2}$s$^\mathrm{-1}$")
+    # plt.title(f"free diffusion coefficient ({bin_size_time} min bins)")
     plt.tight_layout()
+
+    # Save plot
+    plt.savefig(rf"{save_dir}\temporal_response_plot.svg", transparent=True)
+
     plt.show()
 
 
@@ -719,11 +772,12 @@ def main(config_path):
             binned_data=binned_data,
             data_for_each_cell=all_coverslips_data,
             bin_size_time=config["bin_size_time"],
-            ligand_exists=config["ligand_exists"]
+            ligand_exists=config["ligand_exists"],
+            save_dir=config["save_dir"]
         )
 
     # Print execution time
-    print("--- %s seconds ---" % (time.time() - start_time))
+    print(f"--- {time.time() - start_time:.2f} seconds ---")
 
 
 if __name__ == "__main__":
