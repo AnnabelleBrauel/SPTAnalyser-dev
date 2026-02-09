@@ -62,7 +62,6 @@ def load_user_input(config_path):
     cs_names = []  # Coverslip identifiers
     h5_files = []  # .h5 files
     use_timestamps = False
-    ligand_exists = False
     run_stats = False
 
     # --- Load configuration ---
@@ -108,6 +107,7 @@ def load_user_input(config_path):
     # --- LIGAND_ADDITION section ---
     try:
         ligand_time = config["LIGAND_ADDITION"]["ligand_time"]
+        # TODO: I think this is not implemented yet
     except KeyError as e:
         raise IncorrectConfigException(f"Missing parameter in [LIGAND_ADDITION]: {e}")
 
@@ -129,23 +129,30 @@ def load_user_input(config_path):
 
     # --- PLOT_SETTINGS section ---
     try:
-        plot_color = config["PLOT_SETTINGS"].get("dot_color", "#FFA500") or "#FFA500"
-        ligand_exists = config.getboolean("PLOT_SETTINGS", "ligand", fallback=False)
-        if ligand_exists:
-            t_lig = config["PLOT_SETTINGS"]["ligand_index"]
-            # TODO: describe this correctly in config -> is not used for time-based analysis
-        else:
-            t_lig = 0
-        ligand_name = config["PLOT_SETTINGS"]["ligand_name"]
-        error_type = config["PLOT_SETTINGS"]["error_type"]
+
+        ligand_exists = config.getboolean("PLOT_SETTINGS", "ligand_exists", fallback=False)
+        ligand_name = config.get("PLOT_SETTINGS", "ligand_name", fallback="ligand")
+
+        def get_float(config, section, key, fallback=np.nan):
+            value = config.get(section, key, fallback=None)
+            return float(value) if value not in [None, ""] else fallback
+
+        x_start_time = get_float(config, "PLOT_SETTINGS", "x_start_time")
+        x_end_time = get_float(config, "PLOT_SETTINGS", "x_end_time")
+        y_start_diffusion = get_float(config, "PLOT_SETTINGS", "y_start_diffusion")
+        y_end_diffusion = get_float(config, "PLOT_SETTINGS", "y_end_diffusion")
+        y_start_immobile = get_float(config, "PLOT_SETTINGS", "y_start_immobile")
+        y_end_immobile = get_float(config, "PLOT_SETTINGS", "y_end_immobile")
+
+        dot_color = config.get("PLOT_SETTINGS", "dot_color", fallback="#FFA500")
+        # TODO: dot_color doesn't work yet
+        error_type = config.get("PLOT_SETTINGS", "error_type", fallback="sem")
+        # TODO: error_type doesn't work yet
     except KeyError as e:
         raise IncorrectConfigException(f"Missing parameter in [PLOT_SETTINGS]: {e}")
-    # TODO: dot_color doesn't work yet
-    # TODO: error_type doesn't work yet
 
-    # print("dot/plot color:", plot_color)
+    # print("dot/plot color:", dot_color)
     # print("ligand (exists):", ligand_exists)
-    # print("ligand index:", t_lig)
     # print("ligand name:", ligand_name)
     # print("error type:", error_type)
 
@@ -161,6 +168,8 @@ def load_user_input(config_path):
             alpha = p1 = p2 = p3 = None
     except KeyError:
           raise IncorrectConfigException("Section [STAT_SETTINGS] missing in config file.")
+
+    # TODO: add statistics analysis!
 
     # print(run_stats)
     # print(alpha)
@@ -185,15 +194,15 @@ def load_user_input(config_path):
     # print("h5 files:\n", h5_files)
 
      # --- Prepare output directory structure ---
-    time_dir = os.path.join(save_dir, f"time_resolved_analysis_{ligand_name}")
-    os.makedirs(time_dir, exist_ok=True)
+    save_dir = os.path.join(save_dir, f"time_resolved_analysis_{ligand_name}")
+    os.makedirs(save_dir, exist_ok=True)
 
-    # print("\nOutput folder prepared at:", time_dir, "\n")
+    # print("\nOutput folder prepared at:", save_dir, "\n")
 
     # --- Final structured return ---
     return {
         # File system
-        "save_dir": time_dir,
+        "save_dir": save_dir,
         "cs_paths": cs_paths,
         "cs_names": cs_names,
         "h5_files": h5_files,
@@ -208,10 +217,17 @@ def load_user_input(config_path):
         "bin_size_time": bin_size_time,
 
         # Plot configuration
-        "plot_color": plot_color,
         "ligand_exists": ligand_exists,
-        "t_lig": t_lig,
         "ligand_name": ligand_name,
+
+        "x_start_time": x_start_time,
+        "x_end_time": x_end_time,
+        "y_start_diffusion": y_start_diffusion,
+        "y_end_diffusion": y_end_diffusion,
+        "y_start_immobile": y_start_immobile,
+        "y_end_immobile": y_end_immobile,
+
+        "dot_color": dot_color,
         "error_type": error_type,
 
         # Statistics
@@ -645,7 +661,9 @@ def export_time_data(data_for_each_cell, binned_data, bin_size_time, ligand_name
     print(f"Results saved to {binned_csv_path}\n")
 
 
-def plot_free_diffusion_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists, ligand_name, save_dir):
+def plot_free_diffusion_by_time(
+        binned_data, data_for_each_cell, bin_size_time, ligand_exists, ligand_name,
+        x_start_time, x_end_time, y_start_diffusion, y_end_diffusion, save_dir):
     """
     Plots D_free vs Time as scatter points with error boxes using D_free_sem.
     """
@@ -708,6 +726,22 @@ def plot_free_diffusion_by_time(binned_data, data_for_each_cell, bin_size_time, 
     bin_edges = sorted(set(bin_edges))
     plt.xticks(bin_edges)
 
+    # Axes
+    if x_start_time is not None and not np.isnan(x_start_time) and \
+            x_end_time is not None and not np.isnan(x_end_time):
+        plt.xlim(x_start_time, x_end_time)
+    elif x_start_time is not None and not np.isnan(x_start_time):
+        plt.xlim(left=x_start_time)
+    elif x_end_time is not None and not np.isnan(x_end_time):
+        plt.xlim(right=x_end_time)
+    if y_start_diffusion is not None and not np.isnan(y_start_diffusion) and \
+            y_end_diffusion is not None and not np.isnan(y_end_diffusion):
+        plt.ylim(y_start_diffusion, y_end_diffusion)
+    elif y_start_diffusion is not None and not np.isnan(y_start_diffusion):
+        plt.ylim(bottom=y_start_diffusion)
+    elif y_end_diffusion is not None and not np.isnan(y_end_diffusion):
+        plt.ylim(top=y_end_diffusion)
+
     # Plot individual cell data with different colors per coverslip
     n_coverslips = len(data_for_each_cell)
     cmap = matplotlib.colormaps["Blues"]  # shades of blue
@@ -765,13 +799,14 @@ def plot_free_diffusion_by_time(binned_data, data_for_each_cell, bin_size_time, 
     plt.close()
 
 
-def plot_immobile_fraction_by_time(binned_data, data_for_each_cell, bin_size_time, ligand_exists, ligand_name, save_dir):
+def plot_immobile_fraction_by_time(
+        binned_data, data_for_each_cell, bin_size_time, ligand_exists, ligand_name,
+        x_start_time, x_end_time, y_start_immobile, y_end_immobile, save_dir):
     """
         Plots D_free vs Time as scatter points with error boxes using D_free_sem.
         """
 
     # Ensure required columns exist
-    # print(binned_data.head, "-----------------------------")
     required_cols = ["Time_mid", "P_immobile_mean", "P_immobile_median", "P_immobile_sem"]
     for col in required_cols:
         if col not in binned_data.columns:
@@ -828,6 +863,22 @@ def plot_immobile_fraction_by_time(binned_data, data_for_each_cell, bin_size_tim
     bin_edges.append(end)
     bin_edges = sorted(set(bin_edges))
     plt.xticks(bin_edges)
+
+    # Axes
+    if x_start_time is not None and not np.isnan(x_start_time) and \
+            x_end_time is not None and not np.isnan(x_end_time):
+        plt.xlim(x_start_time, x_end_time)
+    elif x_start_time is not None and not np.isnan(x_start_time):
+        plt.xlim(left=x_start_time)
+    elif x_end_time is not None and not np.isnan(x_end_time):
+        plt.xlim(right=x_end_time)
+    if y_start_immobile is not None and not np.isnan(y_start_immobile) and \
+            y_end_immobile is not None and not np.isnan(y_end_immobile):
+        plt.ylim(y_start_immobile, y_end_immobile)
+    elif y_start_immobile is not None and not np.isnan(y_start_immobile):
+        plt.ylim(bottom=y_start_immobile)
+    elif y_end_immobile is not None and not np.isnan(y_end_immobile):
+        plt.ylim(top=y_end_immobile)
 
     # Plot individual cell data with different colors per coverslip
     n_coverslips = len(data_for_each_cell)
@@ -943,6 +994,10 @@ def main(config_path):
             bin_size_time=config["bin_size_time"],
             ligand_exists=config["ligand_exists"],
             ligand_name=config["ligand_name"],
+            x_start_time=config["x_start_time"],
+            x_end_time=config["x_end_time"],
+            y_start_diffusion=config["y_start_diffusion"],
+            y_end_diffusion=config["y_end_diffusion"],
             save_dir=config["save_dir"]
         )
 
@@ -952,6 +1007,10 @@ def main(config_path):
             bin_size_time=config["bin_size_time"],
             ligand_exists=config["ligand_exists"],
             ligand_name=config["ligand_name"],
+            x_start_time=config["x_start_time"],
+            x_end_time=config["x_end_time"],
+            y_start_immobile=config["y_start_immobile"],
+            y_end_immobile=config["y_end_immobile"],
             save_dir=config["save_dir"]
         )
 
