@@ -668,6 +668,9 @@ def plot_free_diffusion_by_time(
     Plots D_free vs Time as scatter points with error boxes using D_free_sem.
     """
 
+    matplotlib.rcParams['font.family'] = 'Arial'
+    matplotlib.rcParams['pdf.fonttype'] = 42
+
     # Ensure required columns exist
     required_cols = ["Time_mid", "D_free_median", "D_free_mean", "D_free_sem"]
     for col in required_cols:
@@ -791,8 +794,8 @@ def plot_free_diffusion_by_time(
     plt.tight_layout()
 
     # Save plot
-    plot_save_dir = rf"{save_dir}\free_diffusion_plot_by_time_{ligand_name}_{bin_size_time:.0f}min.svg"
-    plt.savefig(plot_save_dir, transparent=True)
+    plot_save_dir = rf"{save_dir}\free_diffusion_plot_by_time_{ligand_name}_{bin_size_time:.0f}min.pdf"
+    plt.savefig(plot_save_dir, transparent=True, bbox_inches='tight')
     print(f"Plot saved to {plot_save_dir}")
 
     # plt.show()
@@ -805,6 +808,9 @@ def plot_immobile_fraction_by_time(
     """
         Plots D_free vs Time as scatter points with error boxes using D_free_sem.
         """
+
+    matplotlib.rcParams['font.family'] = 'Arial'
+    matplotlib.rcParams['pdf.fonttype'] = 42
 
     # Ensure required columns exist
     required_cols = ["Time_mid", "P_immobile_mean", "P_immobile_median", "P_immobile_sem"]
@@ -930,8 +936,8 @@ def plot_immobile_fraction_by_time(
     plt.tight_layout()
 
     # Save plot
-    plot_save_dir = rf"{save_dir}\immobile_fraction_plot_by_time_{ligand_name}_{bin_size_time:.0f}min.svg"
-    plt.savefig(plot_save_dir, transparent=True)
+    plot_save_dir = rf"{save_dir}\immobile_fraction_plot_by_time_{ligand_name}_{bin_size_time:.0f}min.pdf"
+    plt.savefig(plot_save_dir, transparent=True, bbox_inches='tight')
     print(f"Plot saved to {plot_save_dir}\n")
 
     #plt.show()
