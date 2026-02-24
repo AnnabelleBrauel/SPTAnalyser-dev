@@ -116,16 +116,23 @@ def load_user_input(config_path):
         use_timestamps = config.getboolean("BINNING", "use_timestamps")
     except KeyError as e:
         raise IncorrectConfigException(f"Missing parameter in [BINNING]: {e}")
-    try:
-        bin_size = float(config["BINNING"]["bin_size"])
-    except KeyError:
-        raise IncorrectConfigException("Section [BIN_SIZE] missing in config file.")
 
-    if use_timestamps in [True, False]:
+    try:
+        raw_bin_size = config["BINNING"]["bin_size"]
+    except KeyError:
+        raise IncorrectConfigException("Parameter 'bin_size' missing in [BINNING]")
+
+    # allow numeric or keyword
+    try:
+        bin_size = float(raw_bin_size)
+    except ValueError:
+        bin_size = raw_bin_size.strip().lower()
+
+    # assign to time or cell binning
+    if isinstance(use_timestamps, bool):
         bin_size_time, bin_size_cells = (bin_size, 0) if use_timestamps else (0, bin_size)
     else:
-        raise IncorrectConfigException(f"Check 'use_timestamps' in [BINNING]")
-    # TODO: fully integrate use_timestamps = False
+        raise IncorrectConfigException("Check 'use_timestamps' in [BINNING]")
 
     # --- PLOT_SETTINGS section ---
     try:
@@ -500,14 +507,14 @@ def load_cell_data(coverslip_name, coverslip_cells, ligand_time, h5_files, tif_f
     return coverslip_data
 
 
-def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins=True):
+def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_cells, config, allow_empty_time_bins=True):
     """
     Bins all cells from *all* coverslips together (shared bin edges) by time or cell number.
     Calculates mean, SD, SEM per bin and returns same structure as before.
     Returns one dataframe with binned data from all coverslips
     """
 
-    def determine_bins(frame, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins=True):
+    def determine_bins(frame, use_timestamps, bin_size_time, bin_size_cells, config, allow_empty_time_bins=True):
         """
         If use_timestamps==True: returns fixed time windows anchored at global min(Time).
         If use_timestamps==False: returns index-based bins of size bin_size_cells.
@@ -517,13 +524,42 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
             return []
 
         if use_timestamps:
+
+            # --- AUTO BIN WIDTH ---
+            if bin_size_time == "auto":
+
+                if not pd.api.types.is_numeric_dtype(frame['Time']):
+                    raise TypeError("Column 'Time' must be numeric (minutes).")
+
+                data = frame["Time"].astype(float).to_numpy()
+                data = data[~np.isnan(data)]
+
+                if len(data) < 2:
+                    bin_size_time = 1.0  # fallback
+                else:
+                    # according to Freedman & Diaconis, 1981
+                    # bin width = 2 * inter quartile distance * n^(-1/3)
+                    iqr = np.subtract(*np.percentile(data, [75, 25]))
+                    bw = 2 * iqr / (len(data) ** (1 / 3))
+
+                    if bw <= 0 or np.isnan(bw):
+                        bw = (data.max() - data.min()) / 10
+
+                    bin_size_time = float(bw)
+                    config["bin_size_time"] = bin_size_time # overwrite 'auto' from config
+
+                print(f"\nAUTO bin size: {bin_size_time:.2f} min")
+
+            else:
+
+                # Use Time column from all_coverslips_data
+                if not pd.api.types.is_numeric_dtype(frame['Time']):
+                    raise TypeError("Column 'Time' must be numeric (minutes).")
+
+            # --- BIN GENERATION ---
             print(f"\nDetermine_bins: GLOBAL time-based binning with window {bin_size_time} min fixed windows...")
 
-            # Use Time column from all_coverslips_data
-            if pd.api.types.is_numeric_dtype(frame['Time']):
-                minutes = frame['Time'].astype(float)
-            else:
-                raise TypeError("Column 'Time' must be numeric (minutes).")
+            minutes = frame["Time"].astype(float)
 
             # Bin edges from min to max, including negative times
             min_bin = np.floor(minutes.min() / bin_size_time) * bin_size_time
@@ -550,6 +586,12 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
 
         else:
 
+            if bin_size_cells == "auto":
+                print("y")
+
+            else:
+                print("c")
+
             print(f"  determine_bins: GLOBAL cell-count binning with bin_size {bin_size_cells}")
             bins = [list(range(i, min(i + bin_size_cells, len(frame))))
                     for i in range(0, len(frame), bin_size_cells)]
@@ -559,7 +601,7 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
 
         return bins
 
-    def aggregate_bins(frame, bins):
+    def aggregate_bins(frame, bins, bin_size_time):
         """
         Aggregates rows according to provided bins (list of lists of row indices)
         Returns a DataFrame with mean, SD, SEM for all numeric columns.
@@ -632,8 +674,8 @@ def bin_input_data(all_coverslips_data, use_timestamps, bin_size_time, bin_size_
     # Combine all coverslips into one global DataFrame
     global_df = pd.concat(all_coverslips_data.values(), ignore_index=True)
 
-    bins = determine_bins(global_df, use_timestamps, bin_size_time, bin_size_cells, allow_empty_time_bins)
-    global_binned = aggregate_bins(global_df, bins)
+    bins = determine_bins(global_df, use_timestamps, bin_size_time, bin_size_cells, config, allow_empty_time_bins)
+    global_binned = aggregate_bins(global_df, bins, bin_size_time=config["bin_size_time"])
 
     print("Binning completed successfully.\n")
 
@@ -648,7 +690,7 @@ def export_time_data(data_for_each_cell, binned_data, bin_size_time, ligand_name
     os.makedirs(save_dir, exist_ok=True)
 
     # --- Export binned_data ---
-    binned_csv_path = os.path.join(save_dir, f"binned_data_{ligand_name}_{bin_size_time:.0f}min.csv")
+    binned_csv_path = os.path.join(save_dir, f"binned_data_{ligand_name}_{bin_size_time:.2f}min.csv")
     binned_data.to_csv(binned_csv_path, index=False)
 
     # --- Export per-coverslip data ---
@@ -703,16 +745,6 @@ def plot_free_diffusion_by_time(
             alpha=0.5
         )
 
-        # Plot horizontal line at median
-        plt.hlines(
-            y=y_median,
-            xmin=start,
-            xmax=end,
-            color="grey",
-            lw=2,
-            label="median" if _ == 0 else None
-        )
-
         # Plot horizontal line at mean
         plt.hlines(
             y=y_mean,
@@ -720,7 +752,7 @@ def plot_free_diffusion_by_time(
             xmax=end,
             color="grey",
             lw=2,
-            linestyles="--",
+            linestyles="-",
             label="mean" if _ == 0 else None
         )
 
@@ -775,11 +807,11 @@ def plot_free_diffusion_by_time(
     for h, l in zip(handles, labels):
         if l == "mean":
             mean_handle = h
-        elif l == "median":
-            median_handle = h
+        # elif l == "median":
+        #     median_handle = h
         else:
             coverslip_handles.append(h)
-    ordered_handles = [mean_handle, median_handle, sem_patch] + coverslip_handles # new order
+    ordered_handles = [mean_handle, sem_patch] + coverslip_handles # new order
     plt.legend(
         handles=ordered_handles,
         loc="center left",
@@ -794,7 +826,7 @@ def plot_free_diffusion_by_time(
     plt.tight_layout()
 
     # Save plot
-    plot_save_dir = rf"{save_dir}\free_diffusion_plot_by_time_{ligand_name}_{bin_size_time:.0f}min.pdf"
+    plot_save_dir = rf"{save_dir}\free_diffusion_plot_by_time_{ligand_name}_{bin_size_time:.2f}min.pdf"
     plt.savefig(plot_save_dir, transparent=True, bbox_inches='tight')
     print(f"Plot saved to {plot_save_dir}")
 
@@ -844,16 +876,6 @@ def plot_immobile_fraction_by_time(
             alpha=0.5
         )
 
-        # Plot horizontal line at median
-        plt.hlines(
-            y=y_median,
-            xmin=start,
-            xmax=end,
-            color="grey",
-            lw=2,
-            label="median" if _ == 0 else None
-        )
-
         # Plot horizontal line at mean
         plt.hlines(
             y=y_mean,
@@ -861,7 +883,7 @@ def plot_immobile_fraction_by_time(
             xmax=end,
             color="grey",
             lw=2,
-            linestyles="--",
+            linestyles="-",
             label="mean" if _ == 0 else None
         )
 
@@ -917,11 +939,11 @@ def plot_immobile_fraction_by_time(
     for h, l in zip(handles, labels):
         if l == "mean":
             mean_handle = h
-        elif l == "median":
-            median_handle = h
+        # elif l == "median":
+        #     median_handle = h
         else:
             coverslip_handles.append(h)
-    ordered_handles = [mean_handle, median_handle, sem_patch] + coverslip_handles  # new order
+    ordered_handles = [mean_handle, sem_patch] + coverslip_handles  # new order
     plt.legend(
         handles=ordered_handles,
         loc="center left",
@@ -936,7 +958,7 @@ def plot_immobile_fraction_by_time(
     plt.tight_layout()
 
     # Save plot
-    plot_save_dir = rf"{save_dir}\immobile_fraction_plot_by_time_{ligand_name}_{bin_size_time:.0f}min.pdf"
+    plot_save_dir = rf"{save_dir}\immobile_fraction_plot_by_time_{ligand_name}_{bin_size_time:.2f}min.pdf"
     plt.savefig(plot_save_dir, transparent=True, bbox_inches='tight')
     print(f"Plot saved to {plot_save_dir}\n")
 
@@ -981,7 +1003,8 @@ def main(config_path):
         all_coverslips_data=all_coverslips_data,
         use_timestamps=config["use_timestamps"],
         bin_size_time=config["bin_size_time"],
-        bin_size_cells=config["bin_size_cells"]
+        bin_size_cells=config["bin_size_cells"],
+        config=config
     )
 
     if config["use_timestamps"] == True:
