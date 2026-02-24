@@ -711,7 +711,7 @@ def plot_free_diffusion_by_time(
     """
 
     matplotlib.rcParams['font.family'] = 'Arial'
-    matplotlib.rcParams['pdf.fonttype'] = 42
+    matplotlib.rcParams['pdf.fonttype'] = 42 # essential for importing the plot into another program
 
     # Ensure required columns exist
     required_cols = ["Time_mid", "D_free_median", "D_free_mean", "D_free_sem"]
