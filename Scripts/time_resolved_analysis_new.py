@@ -19,6 +19,7 @@ import h5py
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+from scipy.stats import mannwhitneyu
 
 
 class IncorrectConfigException(Exception):
@@ -166,23 +167,8 @@ def load_user_input(config_path):
     # --- STAT_SETTINGS section ---
     try:
         run_stats = config.getboolean("STAT_SETTINGS", "run_stats", fallback=False)
-        if run_stats:
-            alpha = float(config["STAT_SETTINGS"]["alpha_norm"])
-            p1 = float(config["STAT_SETTINGS"]["alpha_sign_1"])
-            p2 = float(config["STAT_SETTINGS"]["alpha_sign_2"])
-            p3 = float(config["STAT_SETTINGS"]["alpha_sign_3"])
-        else:
-            alpha = p1 = p2 = p3 = None
     except KeyError:
           raise IncorrectConfigException("Section [STAT_SETTINGS] missing in config file.")
-
-    # TODO: add statistics analysis!
-
-    # print(run_stats)
-    # print(alpha)
-    # print(p1)
-    # print(p2)
-    # print(p3)
 
     # --- SAVE_DIR section ---
     try:
@@ -239,10 +225,6 @@ def load_user_input(config_path):
 
         # Statistics
         "run_stats": run_stats,
-        "alpha": alpha,
-        "p1": p1,
-        "p2": p2,
-        "p3": p3,
     }
 
 
@@ -966,6 +948,50 @@ def plot_immobile_fraction_by_time(
     plt.close()
 
 
+def test_bin_significance(binned_data, save_dir, metric="free_diffusion"):
+
+    results = []
+
+    for condition, df in binned_data.items():
+
+        bins = sorted(df["bin"].unique())
+
+        for i in range(len(bins) - 1):
+
+            bin_a = bins[i]
+            bin_b = bins[i + 1]
+
+            values_a = df[df["bin"] == bin_a][metric].dropna()
+            values_b = df[df["bin"] == bin_b][metric].dropna()
+
+            if len(values_a) > 1 and len(values_b) > 1:
+                stat, p = mannwhitneyu(values_a, values_b, alternative="two-sided")
+
+                results.append({
+                    "condition": condition,
+                    "bin_a": bin_a,
+                    "bin_b": bin_b,
+                    "n_a": len(values_a),
+                    "n_b": len(values_b),
+                    "p_value": p
+                })
+
+        #significance_df.to_csv(
+        #    os.path.join(config["save_dir"], "bin_significance_free_diffusion.csv"),
+        #    index=False
+        #)
+
+        #from statsmodels.stats.multitest import multipletests
+
+        #pvals = significance_df["p_value"].values
+        #corrected = multipletests(pvals, method="fdr_bh")
+
+        #significance_df["p_corrected"] = corrected[1]
+        #significance_df["significant"] = corrected[0]
+
+    return pd.DataFrame(results)
+
+
 def main(config_path):
 
     start_time = time.time()
@@ -1017,6 +1043,13 @@ def main(config_path):
             save_dir=config["save_dir"]
         )
 
+        if config["run_stats"] == True:
+            significance_df = test_bin_significance(
+                binned_data=binned_data,
+                save_dir=config["save_dir"],
+                metric="free_diffusion"
+            )
+
         plot_free_diffusion_by_time(
             binned_data=binned_data,
             data_for_each_cell=all_coverslips_data,
@@ -1029,6 +1062,8 @@ def main(config_path):
             y_end_diffusion=config["y_end_diffusion"],
             save_dir=config["save_dir"]
         )
+
+        # TODO: plot global diffusion by time
 
         plot_immobile_fraction_by_time(
             binned_data=binned_data,
@@ -1044,6 +1079,7 @@ def main(config_path):
         )
 
     else:
+
         print("this function is not implemented yet") # TODO: implement analysis for cell-based data
 
     # Print execution time

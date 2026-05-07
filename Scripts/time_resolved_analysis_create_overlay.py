@@ -7,6 +7,8 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 
+# TODO: shift the beginning of resting cells from 0 min to first data point of all ligand cells
+
 class IncorrectConfigException(Exception):
     def __init__(self, msg):
         Exception.__init__(self, msg)
@@ -85,6 +87,33 @@ def plot_free_diffusion(data, x_start_time, x_end_time, y_start_diffusion, y_end
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
+    def plot_segmented_line(ax, x, y, color):
+        """
+        Plot dashed line segments with gaps around markers.
+
+        shrink : fraction of each segment removed at both ends
+        """
+
+        shrink=0.08
+
+        for i in range(len(x) - 1):
+            x0, y0 = x[i], y[i]
+            x1, y1 = x[i + 1], y[i + 1]
+
+            dx = x1 - x0
+            dy = y1 - y0
+
+            xs = x0 + shrink * dx
+            ys = y0 + shrink * dy
+
+            xe = x1 - shrink * dx
+            ye = y1 - shrink * dy
+
+            ax.plot([xs, xe], [ys, ye],
+                    linestyle="--",
+                    linewidth=1,
+                    color=color)
+
     for i, (cond, offset) in enumerate(zip(conditions, offsets)):
 
         df = data[cond]
@@ -114,11 +143,13 @@ def plot_free_diffusion(data, x_start_time, x_end_time, y_start_diffusion, y_end
         # resting in gray
         if cond.lower() == "resting":
             ax.errorbar(x, mean, yerr=sem, fmt='o', capsize=3, color="grey", label=cond)
-            ax.plot(x, mean, linestyle='--', linewidth=1, color="grey")
+            #ax.plot(x, mean, linestyle='--', linewidth=1, color="grey")
+            plot_segmented_line(ax, x, mean, "grey")
 
         else:
             ax.errorbar(x, mean, yerr=sem, fmt='o', capsize=3, label=cond, color=color)
-            ax.plot(x, mean, linestyle='--', linewidth=1, color=color)
+            #ax.plot(x, mean, linestyle='--', linewidth=1, color=color)
+            plot_segmented_line(ax, x, mean, color)
 
     # Axes
     if x_start_time is not None and not np.isnan(x_start_time) and \

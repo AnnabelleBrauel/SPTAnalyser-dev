@@ -198,7 +198,7 @@ def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_t
                 longest_df.iloc[i, 1].split('-')[1])) / 2) + float(longest_df.iloc[i, 1].split('-')[1])) / 60
 
         # Draw the mean bar
-        ax.barh(row[0],  # mean_value? TODO
+        ax.barh(row[0],  # mean_value?
                 width=right - left,
                 height=ax.get_ylim()[1] * 0.005,  # Thin horizontal bar
                 left=left,
@@ -207,7 +207,7 @@ def plot_by_time(dataframes, attribute, t_lig, ligand_name, binned_data, error_t
                 color='black')
 
         # Draw the error region
-        ax.barh(row[0],  # mean_value? TODO
+        ax.barh(row[0],  # mean_value?
                 width=right - left,
                 height=error * 2,  # Full error width
                 left=left,
@@ -376,7 +376,7 @@ def bin_data_cells(frame, bin_size):
         sem_frame.iloc[-1, 0] = cs_name + "cell_" + str((binnumber - 1) * bin_size) + "-" + str(binnumber * bin_size)
         sem_frame.iloc[-1, 1] = str(int(current_bin.iloc[0, 1])) + "-" + str(int(current_bin.iloc[-1, 1]))
 
-    binnumber += 1  # Shouldn't this have one more tab? TODO
+    binnumber += 1  # Shouldn't this have one more tab?
 
     # Merge all results and insert error columns
     outframe = insert_error(mean_frame, sd_frame, sem_frame)
@@ -695,7 +695,7 @@ def normality_tests(dataframe, attribute):
     :return: Statistics and p-values from Shapiro and Kolmogorov-Smirnov tests
     """
     statistics_shapiro, p_value_shapiro = scy.shapiro(dataframe[attribute])
-    statistics_kolmogorov, p_value_kolmogorov = scy.kstest(dataframe[attribute], 'norm', args=(dataframe[attribute].mean(), dataframe[attribute].std()))  # this was not the right test! test if it works now! TODO
+    statistics_kolmogorov, p_value_kolmogorov = scy.kstest(dataframe[attribute], 'norm', args=(dataframe[attribute].mean(), dataframe[attribute].std()))  # this was not the right test! test if it works now!
     return statistics_shapiro, p_value_shapiro, statistics_kolmogorov, p_value_kolmogorov
 
 
@@ -832,8 +832,6 @@ def rename_columns(old_col_names):
         else:
             new_col_names.append(col)
     return new_col_names
-
-# stopped annotating here TODO
 
 
 def load_cs(sorted_list, coverslip, file, tif_files, coverslip_data):
@@ -1034,7 +1032,7 @@ def main(config_path):
 
     # Load configuration file
     config = configparser.ConfigParser()
-    config.sections()   # TODO: not necessary?
+    config.sections()
     config.read(config_path)
 
     # Check if timestamps should be used
@@ -1225,7 +1223,7 @@ def main(config_path):
     # Clean up cell names to just the range identifier
     for i, row in enumerate(global_mean["Cell Name"]):
         global_mean.iloc[i, 0] = row.split("_")[-1]
-    global_mean.rename(columns={'Cell Names': 'cell range'}) # TODO: likely intended to rename "Cell Name"
+    global_mean.rename(columns={'Cell Names': 'cell range'}) # rename "Cell Name"
 
     # Create output file structure and save results
     output_file = h5py.File(save_dir + '\\stats.h5', 'w')
