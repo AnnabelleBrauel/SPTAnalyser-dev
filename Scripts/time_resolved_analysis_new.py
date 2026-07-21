@@ -1080,7 +1080,7 @@ def main(config_path):
 
     else:
 
-        print("this function is not implemented yet") # TODO: implement analysis for cell-based data
+        print("Cell-based analysis is not implemented yet. Please use timestamp-based analysis.") # TODO: implement analysis for cell-based data
 
     # Print execution time
     print(f"--- {time.time() - start_time:.2f} seconds ---")

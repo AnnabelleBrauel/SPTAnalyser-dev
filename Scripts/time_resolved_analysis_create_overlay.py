@@ -7,8 +7,6 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 
-# TODO: shift the beginning of resting cells from 0 min to first data point of all ligand cells
-
 class IncorrectConfigException(Exception):
     def __init__(self, msg):
         Exception.__init__(self, msg)
@@ -32,6 +30,9 @@ def load_user_input(config_path):
         def get_float(cfg, cfg_section, cfg_key, fallback=np.nan):
             value = cfg.get(cfg_section, cfg_key, fallback=None)
             return float(value) if value not in [None, ""] else fallback
+
+        resting_bin_shift = get_float(config, "PLOT_SETTINGS", "resting_bin_shift")
+        bin_size_resting = get_float(config, "PLOT_SETTINGS", "bin_size_resting")
         x_start_time = get_float(config, "PLOT_SETTINGS", "x_start_time")
         x_end_time = get_float(config, "PLOT_SETTINGS", "x_end_time")
         y_start_diffusion = get_float(config, "PLOT_SETTINGS", "y_start_diffusion")
@@ -47,6 +48,8 @@ def load_user_input(config_path):
         raise IncorrectConfigException("Parameter save_dir missing in [SAVE_DIR].")
 
     return {"dirs": dirs,
+            "resting_bin_shift": resting_bin_shift,
+            "bin_size_resting": bin_size_resting,
             "x_start_time": x_start_time,
             "x_end_time": x_end_time,
             "y_start_diffusion": y_start_diffusion,
@@ -73,7 +76,7 @@ def load_data(dirs):
     return data
 
 
-def plot_free_diffusion(data, x_start_time, x_end_time, y_start_diffusion, y_end_diffusion, save_dir):
+def plot_free_diffusion(data, resting_bin_shift, bin_size_resting, x_start_time, x_end_time, y_start_diffusion, y_end_diffusion, save_dir):
 
     cmap = plt.get_cmap("Set2")
     n_colors = len(data)
@@ -119,6 +122,11 @@ def plot_free_diffusion(data, x_start_time, x_end_time, y_start_diffusion, y_end
         df = data[cond]
 
         x = df["Time_mid"].values
+
+        # Apply overlay shift only to resting condition
+        if cond.lower() == "resting":
+            x = x + resting_bin_shift * bin_size_resting
+
         mean = df["D_free_mean"].values
         sem = df["D_free_sem"].values
 
@@ -135,7 +143,7 @@ def plot_free_diffusion(data, x_start_time, x_end_time, y_start_diffusion, y_end
         #    mean = mean / ref_value
         #    sem = sem / ref_value
 
-            # apply dodge AFTER normalization
+        # apply dodge AFTER normalization
         x = x + offset
 
         color = palette[i % len(palette)]
@@ -199,6 +207,8 @@ def main(config_path):
     # Plot
     plot_free_diffusion(
         data,
+        resting_bin_shift=config["resting_bin_shift"],
+        bin_size_resting=config["bin_size_resting"],
         x_start_time=config["x_start_time"],
         x_end_time=config["x_end_time"],
         y_start_diffusion=config["y_start_diffusion"],
